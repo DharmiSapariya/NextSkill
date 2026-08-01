@@ -1,0 +1,21 @@
+import spacy
+from spacy.matcher import PhraseMatcher
+from skillNer.general_params import SKILL_DB
+from skillNer.skill_extractor_class import SkillExtractor
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from models import Job
+
+nlp = spacy.load("en_core_web_lg")
+skill_extractor = SkillExtractor(nlp, SKILL_DB, PhraseMatcher)
+
+DATABASE_URL = "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+job = session.query(Job).filter(Job.title.ilike("%data scientist%")).first()
+print(f"Testing on: {job.title}\n")
+
+annotations = skill_extractor.annotate(job.description)
+print(annotations)

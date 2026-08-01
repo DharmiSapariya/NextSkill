@@ -30,6 +30,17 @@ class Job(Base):
 
     company = relationship("Company")
 
+class Skill(Base):
+    __tablename__ = "skills"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+
+class JobSkill(Base):
+    __tablename__ = "job_skills"
+    id = Column(Integer, primary_key=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False)
+
 if __name__ == "__main__":
     engine = create_engine(DATABASE_URL)
     Base.metadata.create_all(engine)

@@ -17,7 +17,7 @@ inserted = 0
 skipped = 0
 
 for item in results:
-    external_id = item.get("id")
+    external_id = str(item.get("id"))
 
     existing = session.query(Job).filter_by(external_id=external_id).first()
     if existing:
