@@ -1,70 +1,67 @@
-# 🎯 NextSkill
+# NextSkill
 
-**Stop guessing what to learn next. Let the job market tell you.**
+**Data-driven skill intelligence for the tech job market.**
 
-> 🚧 **Work in progress** — this project is being built in public, one real piece at a time. Nothing here is faked or mocked — every number below is from real data sitting in a real database right now. Star/watch the repo to follow along as it grows.
+> **Status: Work in progress.** This project is being built incrementally and in public. Every figure in this README reflects real data currently stored in a live database — nothing here is simulated or projected.
 
 ---
 
-## 🤔 The Problem
+## Overview
 
-Somewhere out there, thousands of companies are posting job listings *right now*, each one quietly telling you exactly what skills they want. Nobody reads all of them. Nobody tracks how those wants shift over time. So job seekers are left guessing — Python or Go? Docker or Kubernetes? — based on vibes, not evidence.
+Thousands of technical job postings are published every day, each implicitly signaling which skills employers value. No accessible tool aggregates this signal over time or connects it to an individual's own skill set. Job seekers are left making learning decisions based on anecdote rather than evidence.
 
-**NextSkill reads the job market so you don't have to.**
+**NextSkill** addresses this by collecting real job postings, extracting the skills they mention using NLP, and — as the project matures — surfacing which skills are in demand, how that demand is trending, and what an individual should learn next to close the gap.
 
-## 💡 What Makes This Different
+## Why This Project Exists
 
-Most "skill match" tools compare your resume to **one** job description and hand you a score. That's it. NextSkill does something genuinely different:
+Most existing tools fall into one of two categories:
 
-- 📈 **Tracks demand *over time*** — not just "is this skill wanted," but "is it trending up or fading out"
-- 🔍 **Radically transparent** — every recommendation comes with the real posting count behind it, not a black-box score
-- 🆓 **Free and instant** — no signup, no sales call, no enterprise seat license (looking at you, Lightcast)
-- 🎯 **Market-aware, not JD-aware** — compares your skills against the *aggregate* demand curve for a whole role, not a single listing
+- **Enterprise labor-market platforms** (Lightcast, TalentNeuron, LinkedIn Talent Insights) — genuinely powerful, but sold through enterprise sales processes and inaccessible to individuals or students.
+- **Single-comparison resume tools** (Jobscan, Teal, and similar) — compare a resume against one job description at a time, with no concept of aggregate market trends or demand direction.
 
-Enterprise tools like Lightcast and LinkedIn Talent Insights have this kind of trend data — but they're built for HR departments with budgets, not for a student figuring out what to learn next. NextSkill lives in the gap nobody's filling.
+NextSkill is built to occupy the space between these two: free, transparent about its methodology, and grounded in aggregate market data rather than a single job listing.
 
-## 🏗️ How It Works (the vision)
+## Architecture
 
 ```
-Job Boards/APIs  →  Ingestion  →  PostgreSQL  →  NLP Skill Extraction  →  Trend Engine  →  API  →  Dashboard
+Job Board APIs -> Ingestion -> PostgreSQL -> NLP Skill Extraction -> Trend Analysis -> API -> Dashboard
 ```
 
-1. **Ingest** real job postings from job-board APIs
-2. **Store** them in a clean, normalized PostgreSQL schema
-3. **Extract** the skills mentioned in every posting using NLP
-4. **Track** how skill demand rises and falls over time
-5. **Recommend** what to learn next, ranked by real market demand + trend direction
-6. **Serve it all** through a documented API and an interactive dashboard
+1. **Ingest** - pull real postings from job-board APIs
+2. **Store** - normalize and persist into PostgreSQL with idempotent, duplicate-safe loading
+3. **Extract** - identify skills mentioned in each posting using NLP (spaCy + a 60,000+ skill taxonomy)
+4. **Analyze** - track how skill demand shifts over time *(in progress)*
+5. **Recommend** - rank skill gaps by market demand and trend direction *(planned)*
+6. **Serve** - expose results via a documented API and an interactive dashboard *(planned)*
 
-## ✅ Current Status
+## Current Status
 
-Here's exactly what's real right now — updated as it's built, not written in advance:
-
-| Piece | Status |
+| Component | Status |
 |---|---|
-| 🔌 Data source research & selection | ✅ Done |
-| 📥 Job posting ingestion (Adzuna API) | ✅ Done |
-| 🐘 PostgreSQL schema (`companies`, `jobs`) | ✅ Done |
-| ♻️ Idempotent, dedup-safe data loading | ✅ Done |
-| 🧹 Deeper data cleaning | ⏳ In progress |
-| 🧠 NLP skill extraction | ⏳ Up next |
-| 📊 Trend analysis & forecasting | 🔜 Planned |
-| 🎯 Skill-gap recommendation engine | 🔜 Planned |
-| ⚡ FastAPI backend | 🔜 Planned |
-| 📈 Interactive dashboard | 🔜 Planned |
-| 🚀 Deployment | 🔜 Planned |
+| Data source research & selection | Complete |
+| Job posting ingestion (Adzuna API, 21 tech roles) | Complete |
+| PostgreSQL schema (`companies`, `jobs`, `skills`, `job_skills`) | Complete |
+| Idempotent, duplicate-safe data loading | Complete |
+| NLP skill extraction (spaCy + skillNer, 60k+ skill taxonomy) | Complete |
+| Noise filtering / skill blocklist | In progress |
+| Trend analysis & forecasting | Planned |
+| Skill-gap recommendation engine | Planned |
+| FastAPI backend | Planned |
+| Interactive dashboard | Planned |
+| Deployment | Planned |
 
-**Real numbers so far:** 50 real job postings collected, cleaned, and sitting in a live, queryable database — with zero duplicates on reload, thanks to idempotent loading.
+**Current dataset:** 3,086 real postings collected across 21 distinct technical roles; ~5,900+ clean skill mentions extracted after noise filtering.
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Language:** Python 3.12
-- **Database:** PostgreSQL 16 (via Docker Compose)
+- **Database:** PostgreSQL 16 (containerized via Docker Compose)
 - **ORM:** SQLAlchemy 2.x
+- **NLP:** spaCy (`en_core_web_lg`) + skillNer, built on the EMSI/Lightcast open skills database
 - **Data source:** Adzuna Job Search API
-- **Coming soon:** spaCy (NLP), FastAPI, Streamlit/React
+- **Planned:** FastAPI, Streamlit or React
 
-## 🚀 Getting Started (so far)
+## Getting Started
 
 ```bash
 git clone https://github.com/DharmiSapariya/NextSkill.git
@@ -75,23 +72,22 @@ source .venv/bin/activate
 pip install -r requirements.txt   # coming soon
 
 docker compose up -d
-python3 models.py       # creates the schema
-python3 fetch_adzuna.py # pulls fresh postings
-python3 load_data.py    # loads them into Postgres
+python3 models.py                     # creates the database schema
+python3 fetch_adzuna.py               # pulls postings from Adzuna
+python3 load_data.py                  # loads postings into PostgreSQL
+NLTK_DISABLE_IMPORT_SECURITY=1 python3 extract_skillner.py   # extracts skills via NLP
 ```
 
-*(A `.env.example` and `requirements.txt` are coming as the setup stabilizes.)*
+A `.env.example` and `requirements.txt` will be added as the setup stabilizes.
 
-## 🗺️ What's Next
+## Roadmap
 
-The next milestone is teaching the system to actually *read* job descriptions — building a skills taxonomy and an NLP pipeline (spaCy) that extracts which real skills each posting is asking for. That's the piece that turns "a pile of job listings" into "an actual answer" — so it's the whole point of the project, and it's coming next.
+The next milestone is building the trend-analysis layer: aggregating skill mentions over time to determine which skills are gaining or losing demand, followed by the skill-gap recommendation engine that ties this data to an individual user's skill set.
 
-## 👋 Why This Exists
+## Contributors
 
-This is a portfolio project built to demonstrate both backend/data engineering (pipelines, databases, APIs) and applied data science (NLP, trend analysis, recommendation systems) — built in public, with every step, dead end, and bug fix left visible in the commit history instead of squashed away.
-
-Follow along — this README updates as the project grows.
+Built by **[Dharmi Sapariya](https://github.com/DharmiSapariya)** and **Bhavya**.
 
 ---
 
-*Built by [Dharmi Sapariya](https://github.com/DharmiSapariya)*
+*This README is updated as the project progresses - see the commit history for a full record of development, including the debugging process.*
