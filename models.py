@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, Date, ForeignKey, Numeric
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 import os
 from dotenv import load_dotenv
 
@@ -45,3 +45,11 @@ if __name__ == "__main__":
     engine = create_engine(DATABASE_URL)
     Base.metadata.create_all(engine)
     print("Tables created successfully")
+
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+session = Session()
