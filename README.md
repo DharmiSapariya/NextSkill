@@ -117,6 +117,6 @@ A `.env` file is required with `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and `NEXTSKILL
 
 ## Contributors
 
-Built by [Dharmi Sapariya](https://github.com/DharmiSapariya) with [Bhavya Srimanduri](https://github.com/bhavyasrimanduri-bhavya).
+Built by [Dharmi Sapariya](https://github.com/DharmiSapariya) and [Bhavya Srimanduri](https://github.com/bhavyasrimanduri-bhavya).
 
 This README is updated as the project progresses — see the commit history for a full record of development, including the debugging process.
