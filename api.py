@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from datetime import date
 from typing import Optional
 from models import Job, Company, Skill, JobSkill, session
@@ -106,6 +106,34 @@ def top_companies(limit: int = Query(10, le=50)):
     return {"results": [{"company": name, "postings": count} for name, count in results]}
 
 
+# Fixed whitelist of roles used to define the comparison universe for trend
+# calculations. This exists specifically to control for the fact that our
+# Adzuna search coverage expanded from a small initial set of roles to 21
+# over the course of the project — the intermediate "6 roles" state was
+# never committed to git, so the exact original set can't be recovered.
+# Rather than comparing against ALL postings (which mixes roles that were
+# only searched for starting in the later, wider fetch, and inflates or
+# deflates shares for reasons unrelated to real market demand), we restrict
+# both months to this fixed, currently-defined core set so the denominator
+# means the same thing in both periods. This is a deliberate, documented
+# choice — not a full fix for the missing historical data, but it removes
+# the specific confound we diagnosed.
+CORE_TREND_ROLES = [
+    "software engineer",
+    "backend developer",
+    "frontend developer",
+    "full stack developer",
+    "data scientist",
+    "data analyst",
+    "data engineer",
+    "machine learning engineer",
+]
+
+
+def _core_role_filter():
+    return or_(*[Job.title.ilike(f"%{role}%") for role in CORE_TREND_ROLES])
+
+
 def _mentions_in_range(skill_id, start, end):
     return (
         session.query(JobSkill)
@@ -113,12 +141,19 @@ def _mentions_in_range(skill_id, start, end):
         .filter(JobSkill.skill_id == skill_id)
         .filter(Job.posted_date >= start)
         .filter(Job.posted_date < end)
+        .filter(_core_role_filter())
         .count()
     )
 
 
 def _total_postings_in_range(start, end):
-    return session.query(Job).filter(Job.posted_date >= start).filter(Job.posted_date < end).count()
+    return (
+        session.query(Job)
+        .filter(Job.posted_date >= start)
+        .filter(Job.posted_date < end)
+        .filter(_core_role_filter())
+        .count()
+    )
 
 
 @app.get("/trends/{skill_name}")
@@ -158,7 +193,18 @@ def skill_trend(skill_name: str):
         "july_2026": {"mentions": july_mentions, "of_postings": july_total, "share_pct": july_share},
         "change_pct": change_pct,
         "trend": direction,
-        "caveat": "Search coverage expanded from 6 to 21 tech roles between the two periods compared, which can shift each skill's measured share independent of real market demand. Trend confidence will improve as data accumulates under consistent search coverage.",
+        "methodology": (
+            f"Comparison restricted to a fixed set of {len(CORE_TREND_ROLES)} core roles "
+            "(software/backend/frontend/full-stack/data/ML roles) present in both months, "
+            "to control for search coverage expanding from a smaller initial role set to 21 "
+            "roles over the project's timeline."
+        ),
+        "caveat": (
+            "This removes the specific coverage-expansion artifact identified during development, "
+            "but is still a 2-month comparison — not a forecast. A real time-series model "
+            "(e.g. rolling trend or Prophet/ARIMA) needs several more months of consistent data "
+            "before it would add real signal over this simpler comparison."
+        ),
     }
 
 
@@ -194,7 +240,6 @@ def related_skills(skill_name: str, limit: int = Query(10, le=30)):
     if not skill:
         raise HTTPException(status_code=404, detail=f"No data found for skill '{skill_name}'")
 
-    # Get all job IDs that mention this skill
     job_ids_subquery = (
         session.query(JobSkill.job_id)
         .filter(JobSkill.skill_id == skill.id)

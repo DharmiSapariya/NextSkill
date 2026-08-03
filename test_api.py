@@ -1,7 +1,8 @@
 from fastapi.testclient import TestClient
-from api import app
+from api import app, API_KEY
 
 client = TestClient(app)
+AUTH_HEADERS = {"X-API-Key": API_KEY}
 
 
 def test_health():
@@ -37,7 +38,6 @@ def test_top_companies():
     assert response.status_code == 200
     data = response.json()
     assert len(data["results"]) <= 3
-    # results should be sorted descending by postings
     postings = [c["postings"] for c in data["results"]]
     assert postings == sorted(postings, reverse=True)
 
@@ -55,16 +55,24 @@ def test_trend_for_unknown_skill():
     assert response.status_code == 404
 
 
+def test_recommend_requires_api_key():
+    response = client.post(
+        "/recommend",
+        json={"skills": ["Python"], "target_role": "data scientist"},
+    )
+    assert response.status_code == 401
+
+
 def test_recommend_returns_ranked_list():
     response = client.post(
         "/recommend",
         json={"skills": ["Python", "SQL"], "target_role": "data scientist"},
+        headers=AUTH_HEADERS,
     )
     assert response.status_code == 200
     data = response.json()
     assert data["target_role"] == "data scientist"
     assert len(data["recommendations"]) > 0
-    # verify it's sorted descending by demand
     counts = [r["postings_mentioning_it"] for r in data["recommendations"]]
     assert counts == sorted(counts, reverse=True)
 
@@ -73,6 +81,7 @@ def test_recommend_excludes_stated_skills():
     response = client.post(
         "/recommend",
         json={"skills": ["Python"], "target_role": "data scientist"},
+        headers=AUTH_HEADERS,
     )
     data = response.json()
     recommended_names = {r["skill"].lower() for r in data["recommendations"]}
@@ -83,6 +92,7 @@ def test_recommend_evidence_includes_real_postings():
     response = client.post(
         "/recommend/evidence",
         json={"skills": ["Python", "SQL"], "target_role": "data scientist"},
+        headers=AUTH_HEADERS,
     )
     assert response.status_code == 200
     data = response.json()
@@ -101,7 +111,6 @@ def test_related_skills_returns_sensible_results():
     assert data["skill"] == "React"
     assert data["based_on_postings"] > 0
     assert len(data["related_skills"]) <= 5
-    # Should never include React itself in its own related list
     related_names = {r["skill"].lower() for r in data["related_skills"]}
     assert "react" not in related_names
 
