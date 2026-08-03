@@ -72,3 +72,36 @@ def recommend_skills_data(user_skills, target_role_keyword, top_n=10):
         gaps.append({"skill": name, "postings_mentioning_it": mentions})
 
     return gaps[:top_n]
+
+
+def get_evidence_for_skill(skill_name, target_role_keyword, limit=3):
+    """Return a few real postings that mention this skill, for the target role, as evidence."""
+    skill = session.query(Skill).filter_by(name=skill_name).first()
+    if not skill:
+        return []
+
+    postings = (
+        session.query(Job)
+        .join(JobSkill, JobSkill.job_id == Job.id)
+        .filter(JobSkill.skill_id == skill.id)
+        .filter(Job.title.ilike(f"%{target_role_keyword}%"))
+        .limit(limit)
+        .all()
+    )
+
+    return [
+        {
+            "title": p.title,
+            "company": p.company.name if p.company else None,
+            "location": p.location,
+        }
+        for p in postings
+    ]
+
+
+def recommend_skills_with_evidence(user_skills, target_role_keyword, top_n=5):
+    """Same as recommend_skills_data, but attaches real posting evidence to each recommendation."""
+    gaps = recommend_skills_data(user_skills, target_role_keyword, top_n=top_n)
+    for gap in gaps:
+        gap["evidence"] = get_evidence_for_skill(gap["skill"], target_role_keyword)
+    return gaps

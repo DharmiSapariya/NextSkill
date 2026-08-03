@@ -8,14 +8,17 @@ engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# Common single-word languages that skillNer's full_matches was found to miss entirely
-LANGUAGES = [
+# Common single-word/short skills that skillNer's full_matches was found to miss
+# entirely as standalone terms (it only caught them inside compound phrases).
+SUPPLEMENTARY_SKILLS = [
     "Python", "Java", "JavaScript", "TypeScript", "Go", "Rust",
     "Swift", "Kotlin", "PHP", "Ruby", "Scala", "R", "C++", "C#",
+    "SQL", "HTML", "CSS", "React", "Docker", "Kubernetes", "AWS",
+    "Azure", "GCP", "Git", "Linux", "MongoDB", "PostgreSQL", "MySQL",
 ]
 
 skill_cache = {}
-for name in LANGUAGES:
+for name in SUPPLEMENTARY_SKILLS:
     skill = session.query(Skill).filter_by(name=name).first()
     if not skill:
         skill = Skill(name=name)
@@ -37,4 +40,4 @@ for job in jobs:
                 total_matches += 1
 
 session.commit()
-print(f"Added {total_matches} language mentions across {len(jobs)} jobs")
+print(f"Added {total_matches} skill mentions across {len(jobs)} jobs")
