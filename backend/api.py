@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query, Depends, Request
+from fastapi import FastAPI, HTTPException, Query, Depends, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -14,6 +14,10 @@ from typing import Optional
 from models import Job, Company, Skill, JobSkill, User, session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
 from auth import hash_password, verify_password, create_access_token, get_current_user
+from resume_parser import parse_resume
+from match_score import compute_match_score
+from salary_predict import predict_salary
+from role_graph import build_transition_graph, nearest_roles, TRACKED_ROLES
 
 app = FastAPI(
     title="NextSkill API",
@@ -101,6 +105,64 @@ def update_my_skills(body: SkillsUpdateRequest, current_user: User = Depends(get
     current_user.skills = body.skills
     session.commit()
     return {"id": current_user.id, "email": current_user.email, "skills": current_user.skills}
+
+
+@app.post("/auth/me/resume")
+async def upload_resume(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+    """Parses an uploaded resume (PDF or DOCX) and merges the skills it finds
+    into the user's saved skill profile."""
+    file_bytes = await file.read()
+    try:
+        found_skills = parse_resume(file.filename, file_bytes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    existing = set(current_user.skills or [])
+    current_user.skills = sorted(existing | set(found_skills))
+    session.commit()
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "skills_found_in_resume": found_skills,
+        "skills": current_user.skills,
+    }
+
+
+@app.post("/match-score")
+def match_score(body: RecommendRequest, current_user: User = Depends(get_current_user)):
+    """Statistical match score: what % of real postings for the target role
+    the user's current skills would be a strong match for."""
+    skills = body.skills if body.skills is not None else (current_user.skills or [])
+    return compute_match_score(skills, body.target_role)
+
+
+@app.post("/predict-salary")
+def salary_prediction(body: RecommendRequest, current_user: User = Depends(get_current_user)):
+    skills = body.skills if body.skills is not None else (current_user.skills or [])
+    result = predict_salary(skills, body.target_role)
+    if result is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No salary model has been trained yet. Run train_salary_model.py once enough salary-labeled postings exist.",
+        )
+    return result
+
+
+@app.get("/roles/transition-graph")
+def transition_graph():
+    """Graph-shaped data for a force-directed role-transition visualization."""
+    return build_transition_graph()
+
+
+@app.get("/roles/{role}/nearest")
+def role_nearest(role: str, limit: int = Query(5, le=20)):
+    if role.lower() not in TRACKED_ROLES:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{role}' isn't a tracked role. Tracked roles: {', '.join(TRACKED_ROLES)}",
+        )
+    return {"role": role, "nearest_roles": nearest_roles(role.lower(), limit=limit)}
 
 
 @app.get("/jobs")

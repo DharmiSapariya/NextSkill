@@ -1,10 +1,21 @@
+import io
 import uuid
 
 import pytest
+from docx import Document
 from fastapi.testclient import TestClient
 from api import app
 
 client = TestClient(app)
+
+
+def _build_test_resume_docx(skills_text: str) -> bytes:
+    document = Document()
+    document.add_paragraph("Jane Doe — Software Engineer")
+    document.add_paragraph(skills_text)
+    buffer = io.BytesIO()
+    document.save(buffer)
+    return buffer.getvalue()
 
 
 @pytest.fixture(scope="module")
@@ -182,4 +193,112 @@ def test_related_skills_returns_sensible_results():
 
 def test_related_skills_unknown_skill():
     response = client.get("/skills/DefinitelyNotARealSkillXYZ/related")
+    assert response.status_code == 404
+
+
+def test_resume_upload_requires_auth():
+    resume_bytes = _build_test_resume_docx("Skills: Python, SQL")
+    response = client.post(
+        "/auth/me/resume",
+        files={"file": ("resume.docx", resume_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+    )
+    assert response.status_code == 401
+
+
+def test_resume_upload_extracts_and_merges_skills(auth_headers):
+    resume_bytes = _build_test_resume_docx("Skills: Python, TensorFlow, Docker, Kubernetes, AWS")
+    response = client.post(
+        "/auth/me/resume",
+        files={"file": ("resume.docx", resume_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "Python" in data["skills_found_in_resume"]
+    assert "TensorFlow" in data["skills_found_in_resume"]
+    assert set(data["skills_found_in_resume"]).issubset(set(data["skills"]))
+
+
+def test_resume_upload_rejects_unsupported_format(auth_headers):
+    response = client.post(
+        "/auth/me/resume",
+        files={"file": ("resume.txt", b"Skills: Python", "text/plain")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+
+
+def test_match_score_requires_auth():
+    response = client.post("/match-score", json={"target_role": "data scientist"})
+    assert response.status_code == 401
+
+
+def test_match_score_higher_for_relevant_skills(auth_headers):
+    relevant = client.post(
+        "/match-score",
+        json={"skills": ["Python", "SQL", "Pandas"], "target_role": "data scientist"},
+        headers=auth_headers,
+    )
+    irrelevant = client.post(
+        "/match-score",
+        json={"skills": ["React", "CSS"], "target_role": "data scientist"},
+        headers=auth_headers,
+    )
+    assert relevant.status_code == 200
+    assert irrelevant.status_code == 200
+    assert relevant.json()["sample_size"] > 0
+    assert relevant.json()["match_pct"] > irrelevant.json()["match_pct"]
+
+
+def test_match_score_unknown_role_returns_zero_sample(auth_headers):
+    response = client.post(
+        "/match-score",
+        json={"skills": ["Python"], "target_role": "definitely not a tracked role xyz"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["sample_size"] == 0
+    assert data["match_pct"] is None
+
+
+def test_predict_salary_requires_auth():
+    response = client.post("/predict-salary", json={"target_role": "data scientist"})
+    assert response.status_code == 401
+
+
+def test_predict_salary_returns_a_range(auth_headers):
+    response = client.post(
+        "/predict-salary",
+        json={"skills": ["Python", "TensorFlow", "PyTorch", "Docker"], "target_role": "machine learning engineer"},
+        headers=auth_headers,
+    )
+    # CI trains the model before running tests (see train_salary_model.py); locally, if no
+    # model has been trained yet, this correctly returns 503 instead of crashing.
+    assert response.status_code in (200, 503)
+    if response.status_code == 200:
+        data = response.json()
+        assert data["predicted_salary_low"] <= data["predicted_salary_midpoint"] <= data["predicted_salary_high"]
+
+
+def test_transition_graph_returns_nodes_and_edges():
+    response = client.get("/roles/transition-graph")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["nodes"]) > 0
+    assert all({"id", "label", "posting_count"} <= node.keys() for node in data["nodes"])
+    assert all({"source", "target", "weight"} <= edge.keys() for edge in data["edges"])
+
+
+def test_nearest_roles_for_known_role():
+    response = client.get("/roles/data scientist/nearest?limit=3")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["nearest_roles"]) <= 3
+    for entry in data["nearest_roles"]:
+        assert "skills_you_would_need" in entry
+
+
+def test_nearest_roles_for_untracked_role():
+    response = client.get("/roles/underwater basket weaver/nearest")
     assert response.status_code == 404
