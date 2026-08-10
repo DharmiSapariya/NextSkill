@@ -1,0 +1,8 @@
+# Only needed for the NLP skill-extraction pipeline (extract_skillner.py, test_skillner.py) —
+# not required to run the API itself. Kept separate so the API image stays small.
+-r requirements.txt
+spacy>=3.7
+skillNer>=1.0.3
+
+# after installing, fetch the spaCy model:
+#   python -m spacy download en_core_web_lg

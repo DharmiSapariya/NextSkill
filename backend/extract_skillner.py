@@ -3,18 +3,11 @@ import spacy
 from spacy.matcher import PhraseMatcher
 from skillNer.general_params import SKILL_DB
 from skillNer.skill_extractor_class import SkillExtractor
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from models import Job, Skill, JobSkill
+from models import Job, Skill, JobSkill, session
 
 print("Loading language model...")
 nlp = spacy.load("en_core_web_lg")
 skill_extractor = SkillExtractor(nlp, SKILL_DB, PhraseMatcher)
-
-DATABASE_URL = "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()
 
 # Clear out the old regex-based results — we're upgrading the extraction method,
 # not mixing two different approaches together in the same table.

@@ -1,11 +1,4 @@
-from sqlalchemy import create_engine, func
-from sqlalchemy.orm import sessionmaker
-from models import Skill, JobSkill
-
-DATABASE_URL = "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()
+from models import Skill, JobSkill, session
 
 all_skills = session.query(Skill).all()
 

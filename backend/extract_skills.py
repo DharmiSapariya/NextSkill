@@ -1,14 +1,6 @@
 import re
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from models import Job, Skill, JobSkill
+from models import Job, Skill, JobSkill, session
 from skills_taxonomy import SKILLS_TAXONOMY
-
-DATABASE_URL = "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
-
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()
 
 skill_objects = {}
 for skill_name in SKILLS_TAXONOMY:
