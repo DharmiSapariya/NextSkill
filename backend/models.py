@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
+)
 
 Base = declarative_base()
 
@@ -41,15 +43,10 @@ class JobSkill(Base):
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
     skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False)
 
+engine = create_engine(DATABASE_URL)
+Session = sessionmaker(bind=engine)
+session = Session()
+
 if __name__ == "__main__":
-    engine = create_engine(DATABASE_URL)
     Base.metadata.create_all(engine)
     print("Tables created successfully")
-
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()
-
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()

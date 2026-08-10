@@ -1,12 +1,5 @@
 import re
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from models import Job, Skill, JobSkill
-
-DATABASE_URL = "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()
+from models import Job, Skill, JobSkill, session
 
 # Common single-word/short skills that skillNer's full_matches was found to miss
 # entirely as standalone terms (it only caught them inside compound phrases).

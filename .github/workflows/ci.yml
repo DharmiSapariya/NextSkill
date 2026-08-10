@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: jobintel
+          POSTGRES_PASSWORD: localdevpassword
+          POSTGRES_DB: job_market
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U jobintel -d job_market"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market
+      NEXTSKILL_API_KEY: ci-test-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Seed fixture data
+        working-directory: backend
+        run: python seed_test_data.py
+
+      - name: Run tests
+        working-directory: backend
+        run: pytest -v

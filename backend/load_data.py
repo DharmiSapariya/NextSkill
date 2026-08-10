@@ -1,13 +1,5 @@
 import json
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from models import Base, Company, Job
-
-DATABASE_URL = "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
-
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()
+from models import Company, Job, session
 
 with open("raw_jobs_adzuna.json") as f:
     data = json.load(f)

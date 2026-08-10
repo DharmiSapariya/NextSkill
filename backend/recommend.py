@@ -1,12 +1,5 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func
-from models import Job, Skill, JobSkill
-
-DATABASE_URL = "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()
+from models import Job, Skill, JobSkill, session
 
 def recommend_skills(user_skills, target_role_keyword, top_n=10):
     user_skills_lower = {s.lower() for s in user_skills}

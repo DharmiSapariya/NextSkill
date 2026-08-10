@@ -48,8 +48,8 @@ Adzuna API -> Ingestion -> PostgreSQL -> NLP Skill Extraction -> FastAPI -> Stre
 | FastAPI backend (8 endpoints, API-key auth, rate limiting) | Complete |
 | Interactive dashboard (Streamlit) | MVP built |
 | Forecasting model (Prophet/ARIMA) | Deferred — needs more months of data |
-| Dockerfile for the API + full docker-compose (API + DB) | Planned |
-| CI (GitHub Actions running pytest on push) | Planned |
+| Dockerfile for the API + full docker-compose (API + DB) | Complete |
+| CI (GitHub Actions running pytest on push) | Complete |
 | Deployment | Planned |
 
 **Current dataset:** 3,086 real postings collected across 21 distinct technical roles; ~6,900+ skill mentions extracted, noise-filtered and duplicate-merged.
@@ -68,6 +68,15 @@ Protected endpoints (require an `X-API-Key` header, rate-limited to 10 requests/
 - `POST /recommend` — skill-gap recommendations ranked by market demand
 - `POST /recommend/evidence` — same, with real postings attached as evidence for every recommendation
 
+## Project Structure
+
+```
+NextSkill/
+├── backend/          FastAPI app, data pipeline, ORM models, tests, Dockerfile
+├── dashboard/         Streamlit frontend (talks to the API over HTTP only)
+└── .github/workflows/ CI (pytest against a seeded Postgres service)
+```
+
 ## Tech Stack
 
 - **Language:** Python 3.12
@@ -83,23 +92,35 @@ Protected endpoints (require an `X-API-Key` header, rate-limited to 10 requests/
 
 ```bash
 git clone https://github.com/DharmiSapariya/NextSkill.git
-cd NextSkill
+cd NextSkill/backend
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt   # coming soon
-docker compose up -d              # starts Postgres on port 5433
+pip install -r requirements.txt
+cp .env.example .env              # fill in ADZUNA_APP_ID / ADZUNA_APP_KEY / NEXTSKILL_API_KEY
+docker compose up -d db           # starts Postgres on port 5433
 
 python3 models.py                                              # creates the database schema
 python3 fetch_adzuna.py                                         # pulls postings from Adzuna
 python3 load_data.py                                            # loads postings into PostgreSQL
+pip install -r requirements-nlp.txt && python -m spacy download en_core_web_lg
 NLTK_DISABLE_IMPORT_SECURITY=1 python3 extract_skillner.py       # extracts skills via NLP
 python3 extract_languages.py                                     # supplementary extraction for common single-word skills
 
 uvicorn api:app --reload --port 8000     # in one terminal — starts the API
+
+cd ../dashboard
+pip install -r requirements.txt
 streamlit run streamlit_app.py           # in another terminal — starts the dashboard
 ```
 
-A `.env` file is required with `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and `NEXTSKILL_API_KEY` — see `.env.example` (coming soon).
+Or bring up the API + Postgres together with Docker Compose alone:
+
+```bash
+cd backend
+docker compose up --build   # starts Postgres + the API on port 8000
+```
+
+A `.env` file (in `backend/`) is required with `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and `NEXTSKILL_API_KEY` — see `backend/.env.example`.
 
 ## Known Limitations
 
@@ -108,12 +129,10 @@ A `.env` file is required with `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and `NEXTSKILL
 
 ## Roadmap
 
-1. Add a Dockerfile for the API itself and a combined `docker-compose.yml` (API + DB)
-2. Set up GitHub Actions CI to run pytest on every push
-3. Semantic/embedding-based skill and role matching (e.g. recognizing "Postgres"/"PostgreSQL" as the same skill, and fuzzy role-name matching)
-4. Deploy (Render/Railway/Fly.io for the API, Supabase/Neon for Postgres)
-5. Formal EDA notebook with saved visualizations
-6. "Top skills for X role in 2026" write-up using real findings from this data
+1. Semantic/embedding-based skill and role matching (e.g. recognizing "Postgres"/"PostgreSQL" as the same skill, and fuzzy role-name matching)
+2. Deploy (Render/Railway/Fly.io for the API, Supabase/Neon for Postgres — `DATABASE_URL` is already externalized via env var for this)
+3. Formal EDA notebook with saved visualizations
+4. "Top skills for X role in 2026" write-up using real findings from this data
 
 ## Contributors
 
