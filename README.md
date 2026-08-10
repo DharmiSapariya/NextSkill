@@ -64,8 +64,14 @@ Base endpoints (no auth required):
 - `GET /trends/{skill_name}` — month-over-month demand, restricted to a fixed core-role set to keep the comparison meaningful (methodology explained in the response itself)
 - `GET /skills/{skill_name}/related` — skill co-occurrence within postings
 
-Protected endpoints (require an `X-API-Key` header, rate-limited to 10 requests/minute):
-- `POST /recommend` — skill-gap recommendations ranked by market demand
+Auth:
+- `POST /auth/signup` — `{email, password}` → JWT access token
+- `POST /auth/login` — `{email, password}` → JWT access token
+- `GET /auth/me` — current user + saved skill profile
+- `PUT /auth/me/skills` — update the saved skill profile
+
+Protected endpoints (require an `Authorization: Bearer <token>` header, rate-limited to 10 requests/minute):
+- `POST /recommend` — skill-gap recommendations ranked by market demand. `skills` in the request body is optional — omit it to use the logged-in user's saved skill profile instead.
 - `POST /recommend/evidence` — same, with real postings attached as evidence for every recommendation
 
 ## Project Structure
@@ -84,8 +90,8 @@ NextSkill/
 - **ORM:** SQLAlchemy 2.x
 - **NLP:** spaCy (`en_core_web_lg`) + skillNer, built on the EMSI/Lightcast open skills database
 - **Data source:** Adzuna Job Search API
-- **Backend:** FastAPI + Uvicorn, `slowapi` for rate limiting, custom `X-API-Key` auth
-- **Testing:** pytest (13 tests covering endpoints, auth, and recommendation logic)
+- **Backend:** FastAPI + Uvicorn, `slowapi` for rate limiting, JWT auth (`python-jose` + `passlib`/bcrypt)
+- **Testing:** pytest (endpoints, auth/signup/login, and recommendation logic)
 - **Dashboard:** Streamlit
 
 ## Getting Started
@@ -96,7 +102,7 @@ cd NextSkill/backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env              # fill in ADZUNA_APP_ID / ADZUNA_APP_KEY / NEXTSKILL_API_KEY
+cp .env.example .env              # fill in ADZUNA_APP_ID / ADZUNA_APP_KEY / JWT_SECRET_KEY
 docker compose up -d db           # starts Postgres on port 5433
 
 python3 models.py                                              # creates the database schema
@@ -120,7 +126,7 @@ cd backend
 docker compose up --build   # starts Postgres + the API on port 8000
 ```
 
-A `.env` file (in `backend/`) is required with `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and `NEXTSKILL_API_KEY` — see `backend/.env.example`.
+A `.env` file (in `backend/`) is required with `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and `JWT_SECRET_KEY` — see `backend/.env.example`.
 
 ## Known Limitations
 
