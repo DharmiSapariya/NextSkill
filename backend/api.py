@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Query, Header, Depends, Request
+from fastapi import FastAPI, HTTPException, Query, Depends, Request
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -6,17 +7,33 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_
 from datetime import date
 from typing import Optional
-from models import Job, Company, Skill, JobSkill, session
+from models import Job, Company, Skill, JobSkill, User, session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
+from auth import hash_password, verify_password, create_access_token, get_current_user
 
 app = FastAPI(
     title="NextSkill API",
     description="Real-time, market-aware skill-gap recommendations built from real job posting data.",
     version="0.4.0",
+)
+
+# Comma-separated list of allowed frontend origins, e.g. "https://nextskill.app,http://localhost:5173"
+FRONTEND_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("FRONTEND_ORIGINS", "http://localhost:3000,http://localhost:5173").split(",")
+    if origin.strip()
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=FRONTEND_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 limiter = Limiter(key_func=get_remote_address)
@@ -25,22 +42,65 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 class RecommendRequest(BaseModel):
-    skills: list[str]
     target_role: str
+    # If omitted, falls back to the authenticated user's saved skill profile.
+    skills: Optional[list[str]] = None
 
 
-API_KEY = os.getenv("NEXTSKILL_API_KEY")
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str
 
 
-def verify_api_key(x_api_key: str = Header(None)):
-    if x_api_key != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid or missing API key. Pass it in the X-API-Key header.")
-    return x_api_key
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class SkillsUpdateRequest(BaseModel):
+    skills: list[str]
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/auth/signup", response_model=TokenResponse)
+def signup(body: SignupRequest):
+    email = body.email.lower()
+    if session.query(User).filter_by(email=email).first():
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+
+    user = User(email=email, hashed_password=hash_password(body.password), skills=[])
+    session.add(user)
+    session.commit()
+    return TokenResponse(access_token=create_access_token(user.id))
+
+
+@app.post("/auth/login", response_model=TokenResponse)
+def login(body: LoginRequest):
+    user = session.query(User).filter_by(email=body.email.lower()).first()
+    if not user or not verify_password(body.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return TokenResponse(access_token=create_access_token(user.id))
+
+
+@app.get("/auth/me")
+def get_me(current_user: User = Depends(get_current_user)):
+    return {"id": current_user.id, "email": current_user.email, "skills": current_user.skills or []}
+
+
+@app.put("/auth/me/skills")
+def update_my_skills(body: SkillsUpdateRequest, current_user: User = Depends(get_current_user)):
+    current_user.skills = body.skills
+    session.commit()
+    return {"id": current_user.id, "email": current_user.email, "skills": current_user.skills}
 
 
 @app.get("/jobs")
@@ -208,26 +268,28 @@ def skill_trend(skill_name: str):
     }
 
 
-@app.post("/recommend", dependencies=[Depends(verify_api_key)])
+@app.post("/recommend")
 @limiter.limit("10/minute")
-def recommend(request: Request, body: RecommendRequest):
-    results = recommend_skills_data(body.skills, body.target_role)
+def recommend(request: Request, body: RecommendRequest, current_user: User = Depends(get_current_user)):
+    skills = body.skills if body.skills is not None else (current_user.skills or [])
+    results = recommend_skills_data(skills, body.target_role)
     return {
         "target_role": body.target_role,
-        "your_skills": body.skills,
+        "your_skills": skills,
         "recommendations": results,
     }
 
 
-@app.post("/recommend/evidence", dependencies=[Depends(verify_api_key)])
+@app.post("/recommend/evidence")
 @limiter.limit("10/minute")
-def recommend_with_evidence(request: Request, body: RecommendRequest):
+def recommend_with_evidence(request: Request, body: RecommendRequest, current_user: User = Depends(get_current_user)):
     """Like /recommend, but every recommendation includes real postings as evidence —
     radical transparency instead of a black-box score."""
-    results = recommend_skills_with_evidence(body.skills, body.target_role)
+    skills = body.skills if body.skills is not None else (current_user.skills or [])
+    results = recommend_skills_with_evidence(skills, body.target_role)
     return {
         "target_role": body.target_role,
-        "your_skills": body.skills,
+        "your_skills": skills,
         "recommendations": results,
     }
 

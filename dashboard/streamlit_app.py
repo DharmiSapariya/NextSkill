@@ -4,12 +4,11 @@ NextSkill Dashboard — Streamlit frontend for the NextSkill API.
 Run with:
     streamlit run streamlit_app.py
 
-Assumes the FastAPI backend is running locally (default: http://localhost:8000)
-and that NEXTSKILL_API_KEY is available (either pasted into the sidebar, or
-set as an environment variable before launching streamlit).
+Assumes the FastAPI backend is running locally (default: http://localhost:8000).
+Sign up or log in from the sidebar — /recommend and /recommend/evidence need
+an authenticated user.
 """
 
-import os
 import requests
 import streamlit as st
 import pandas as pd
@@ -23,16 +22,45 @@ st.sidebar.title("NextSkill")
 st.sidebar.caption("Market-aware skill-gap recommendations")
 
 api_base = st.sidebar.text_input("API base URL", value="http://localhost:8000")
-api_key = st.sidebar.text_input(
-    "X-API-Key",
-    value=os.environ.get("NEXTSKILL_API_KEY", ""),
-    type="password",
-    help="Required for /recommend and /recommend/evidence. Reads NEXTSKILL_API_KEY env var by default.",
-)
+
+if "access_token" not in st.session_state:
+    st.session_state.access_token = None
+    st.session_state.user_email = None
+
+st.sidebar.divider()
+
+if st.session_state.access_token:
+    st.sidebar.success(f"Logged in as {st.session_state.user_email}")
+    if st.sidebar.button("Log out"):
+        st.session_state.access_token = None
+        st.session_state.user_email = None
+        st.rerun()
+else:
+    auth_tab_login, auth_tab_signup = st.sidebar.tabs(["Log in", "Sign up"])
+
+    for tab, endpoint, label in [
+        (auth_tab_login, "/auth/login", "Log in"),
+        (auth_tab_signup, "/auth/signup", "Sign up"),
+    ]:
+        with tab:
+            email = st.text_input("Email", key=f"email_{endpoint}")
+            password = st.text_input("Password", type="password", key=f"password_{endpoint}")
+            if st.button(label, key=f"submit_{endpoint}"):
+                try:
+                    r = requests.post(f"{api_base}{endpoint}", json={"email": email, "password": password}, timeout=10)
+                except requests.exceptions.ConnectionError:
+                    st.error(f"Couldn't reach the API at {api_base}. Is uvicorn running?")
+                else:
+                    if r.status_code == 200:
+                        st.session_state.access_token = r.json()["access_token"]
+                        st.session_state.user_email = email
+                        st.rerun()
+                    else:
+                        st.error(r.json().get("detail", f"{label} failed ({r.status_code})"))
 
 st.sidebar.divider()
 st.sidebar.caption(
-    "Health, jobs, trends, and company data are open endpoints — no key needed."
+    "Health, jobs, trends, and company data are open endpoints — no login needed."
 )
 
 
@@ -50,7 +78,7 @@ def api_post_authed(path, json_body):
         r = requests.post(
             f"{api_base}{path}",
             json=json_body,
-            headers={"X-API-Key": api_key},
+            headers={"Authorization": f"Bearer {st.session_state.access_token}"},
             timeout=15,
         )
         return r
@@ -97,8 +125,8 @@ with tab_recommend:
     show_evidence = st.checkbox("Show posting evidence for each recommendation", value=True)
 
     if st.button("Get recommendations", type="primary"):
-        if not api_key:
-            st.warning("Paste your X-API-Key in the sidebar first — this endpoint is protected.")
+        if not st.session_state.access_token:
+            st.warning("Log in or sign up in the sidebar first — this endpoint requires an account.")
         elif not skills_input or not target_role:
             st.warning("Fill in both your current skills and a target role.")
         else:
@@ -107,8 +135,8 @@ with tab_recommend:
             resp = api_post_authed(endpoint, {"skills": user_skills, "target_role": target_role})
 
             if resp is not None:
-                if resp.status_code == 401:
-                    st.error("401 Unauthorized — check your API key.")
+                if resp.status_code in (401, 403):
+                    st.error("Not authenticated — please log in again.")
                 elif resp.status_code == 429:
                     st.error("429 Too Many Requests — you've hit the rate limit (10/min). Wait a moment.")
                 elif resp.status_code != 200:

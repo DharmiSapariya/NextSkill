@@ -26,7 +26,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market
-      NEXTSKILL_API_KEY: ci-test-key
+      JWT_SECRET_KEY: ci-test-secret
 
     steps:
       - uses: actions/checkout@v4

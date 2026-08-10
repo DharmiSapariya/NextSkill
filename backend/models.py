@@ -1,5 +1,6 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Date, ForeignKey, Numeric
+from sqlalchemy import create_engine, Column, Integer, String, Text, Date, DateTime, ForeignKey, Numeric, JSON
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from datetime import datetime, timezone
 import os
 from dotenv import load_dotenv
 
@@ -42,6 +43,14 @@ class JobSkill(Base):
     id = Column(Integer, primary_key=True)
     job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
     skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False)
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, unique=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    skills = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
