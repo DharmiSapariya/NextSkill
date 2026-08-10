@@ -19,7 +19,7 @@ services:
     build: .
     environment:
       DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@db:5432/job_market
-      NEXTSKILL_API_KEY: ${NEXTSKILL_API_KEY:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in your .env before running docker compose}
     ports:
       - "8000:8000"
     depends_on:
