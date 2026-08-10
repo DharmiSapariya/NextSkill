@@ -43,6 +43,10 @@ jobs:
         working-directory: backend
         run: python seed_test_data.py
 
+      - name: Train salary model
+        working-directory: backend
+        run: python train_salary_model.py
+
       - name: Run tests
         working-directory: backend
         run: pytest -v
