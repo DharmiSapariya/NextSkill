@@ -7,6 +7,12 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
+import sentry_sdk
+
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN"),
+    traces_sample_rate=0.1
+)
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_
 from datetime import date
