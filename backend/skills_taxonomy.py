@@ -2,7 +2,7 @@ SKILLS_TAXONOMY = [
     # Languages
     "Python", "Java", "JavaScript", "TypeScript", "C++", "C#", "Go", "Rust", "SQL", "R",
     # Web/backend frameworks
-    "React", "Angular", "Vue", "Node.js", "Django", "Flask", "FastAPI", "Spring Boot", "Express",
+    "React", "Angular", "Vue", "Next.js", "Node.js", "Django", "Flask", "FastAPI", "Spring Boot", "Express", "Tailwind CSS",
     # Data & ML
     "Pandas", "NumPy", "scikit-learn", "TensorFlow", "PyTorch", "Machine Learning",
     "Deep Learning", "NLP", "Data Analysis", "Data Visualization",
