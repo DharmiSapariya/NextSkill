@@ -18,6 +18,7 @@ services:
   api:
     build: .
     environment:
+      SENTRY_DSN: ${SENTRY_DSN:-}
       DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@db:5432/job_market
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in your .env before running docker compose}
     ports:
