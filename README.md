@@ -118,7 +118,7 @@ NextSkill/
 - **Backend:** FastAPI + Uvicorn, `slowapi` for rate limiting, JWT auth (`python-jose` + `passlib`/bcrypt)
 - **Testing:** pytest, running in CI against a real seeded Postgres instance — not mocked
 - **Dashboard:** Streamlit
-
+- **Error tracking:** Sentry
 ## Getting started
 
 ```bash
