@@ -24,6 +24,7 @@ from resume_parser import parse_resume
 from match_score import compute_match_score
 from salary_predict import predict_salary
 from role_graph import build_transition_graph, nearest_roles, TRACKED_ROLES
+from role_matcher import resolve_role
 from cache import cache_get, cache_set
 
 app = FastAPI(
@@ -141,18 +142,23 @@ def match_score(body: RecommendRequest, current_user: User = Depends(get_current
     """Statistical match score: what % of real postings for the target role
     the user's current skills would be a strong match for."""
     skills = body.skills if body.skills is not None else (current_user.skills or [])
-    return compute_match_score(skills, body.target_role)
+    role_resolution = resolve_role(body.target_role)
+    result = compute_match_score(skills, role_resolution["resolved"])
+    result["role_resolution"] = role_resolution
+    return result
 
 
 @app.post("/predict-salary")
 def salary_prediction(body: RecommendRequest, current_user: User = Depends(get_current_user)):
     skills = body.skills if body.skills is not None else (current_user.skills or [])
-    result = predict_salary(skills, body.target_role)
+    role_resolution = resolve_role(body.target_role)
+    result = predict_salary(skills, role_resolution["resolved"])
     if result is None:
         raise HTTPException(
             status_code=503,
             detail="No salary model has been trained yet. Run train_salary_model.py once enough salary-labeled postings exist.",
         )
+    result["role_resolution"] = role_resolution
     return result
 
 
@@ -170,12 +176,18 @@ def transition_graph():
 
 @app.get("/roles/{role}/nearest")
 def role_nearest(role: str, limit: int = Query(5, le=20)):
-    if role.lower() not in TRACKED_ROLES:
+    role_resolution = resolve_role(role)
+    resolved_role = role_resolution["resolved"]
+    if resolved_role not in TRACKED_ROLES:
         raise HTTPException(
             status_code=404,
             detail=f"'{role}' isn't a tracked role. Tracked roles: {', '.join(TRACKED_ROLES)}",
         )
-    return {"role": role, "nearest_roles": nearest_roles(role.lower(), limit=limit)}
+    return {
+        "role": role,
+        "role_resolution": role_resolution,
+        "nearest_roles": nearest_roles(resolved_role, limit=limit),
+    }
 
 
 @app.get("/jobs")
@@ -354,9 +366,11 @@ def skill_trend(skill_name: str):
 @limiter.limit("10/minute")
 def recommend(request: Request, body: RecommendRequest, current_user: User = Depends(get_current_user)):
     skills = body.skills if body.skills is not None else (current_user.skills or [])
-    results = recommend_skills_data(skills, body.target_role)
+    role_resolution = resolve_role(body.target_role)
+    results = recommend_skills_data(skills, role_resolution["resolved"])
     return {
         "target_role": body.target_role,
+        "role_resolution": role_resolution,
         "your_skills": skills,
         "recommendations": results,
     }
@@ -368,9 +382,11 @@ def recommend_with_evidence(request: Request, body: RecommendRequest, current_us
     """Like /recommend, but every recommendation includes real postings as evidence —
     radical transparency instead of a black-box score."""
     skills = body.skills if body.skills is not None else (current_user.skills or [])
-    results = recommend_skills_with_evidence(skills, body.target_role)
+    role_resolution = resolve_role(body.target_role)
+    results = recommend_skills_with_evidence(skills, role_resolution["resolved"])
     return {
         "target_role": body.target_role,
+        "role_resolution": role_resolution,
         "your_skills": skills,
         "recommendations": results,
     }
