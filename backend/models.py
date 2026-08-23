@@ -41,8 +41,8 @@ class Skill(Base):
 class JobSkill(Base):
     __tablename__ = "job_skills"
     id = Column(Integer, primary_key=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
-    skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False, index=True)
+    skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False, index=True)
 
 class User(Base):
     __tablename__ = "users"
