@@ -24,6 +24,7 @@ from resume_parser import parse_resume
 from match_score import compute_match_score
 from salary_predict import predict_salary
 from role_graph import build_transition_graph, nearest_roles, TRACKED_ROLES
+from cache import cache_get, cache_set
 
 app = FastAPI(
     title="NextSkill API",
@@ -158,7 +159,13 @@ def salary_prediction(body: RecommendRequest, current_user: User = Depends(get_c
 @app.get("/roles/transition-graph")
 def transition_graph():
     """Graph-shaped data for a force-directed role-transition visualization."""
-    return build_transition_graph()
+    cache_key = "transition-graph"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    result = build_transition_graph()
+    cache_set(cache_key, result, ttl_seconds=86400)  # data only changes when the pipeline re-ingests
+    return result
 
 
 @app.get("/roles/{role}/nearest")
@@ -286,6 +293,11 @@ def _total_postings_in_range(start, end):
 
 @app.get("/trends/{skill_name}")
 def skill_trend(skill_name: str):
+    cache_key = f"trend:{skill_name.lower()}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     skill = session.query(Skill).filter(Skill.name.ilike(skill_name)).first()
     if not skill:
         raise HTTPException(status_code=404, detail=f"No data found for skill '{skill_name}'")
@@ -314,7 +326,7 @@ def skill_trend(skill_name: str):
 
     total_mentions = session.query(JobSkill).filter_by(skill_id=skill.id).count()
 
-    return {
+    result = {
         "skill": skill.name,
         "total_mentions": total_mentions,
         "june_2026": {"mentions": june_mentions, "of_postings": june_total, "share_pct": june_share},
@@ -334,6 +346,8 @@ def skill_trend(skill_name: str):
             "before it would add real signal over this simpler comparison."
         ),
     }
+    cache_set(cache_key, result, ttl_seconds=3600)
+    return result
 
 
 @app.post("/recommend")
@@ -366,6 +380,11 @@ def recommend_with_evidence(request: Request, body: RecommendRequest, current_us
 def related_skills(skill_name: str, limit: int = Query(10, le=30)):
     """Find skills that commonly co-occur with the given skill in the same postings —
     e.g. what else does a company usually ask for alongside React?"""
+    cache_key = f"related:{skill_name.lower()}:{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     skill = session.query(Skill).filter(Skill.name.ilike(skill_name)).first()
     if not skill:
         raise HTTPException(status_code=404, detail=f"No data found for skill '{skill_name}'")
@@ -377,7 +396,9 @@ def related_skills(skill_name: str, limit: int = Query(10, le=30)):
 
     base_count = session.query(job_ids_subquery).count()
     if base_count == 0:
-        return {"skill": skill.name, "based_on_postings": 0, "related_skills": []}
+        result = {"skill": skill.name, "based_on_postings": 0, "related_skills": []}
+        cache_set(cache_key, result, ttl_seconds=3600)
+        return result
 
     co_occurring = (
         session.query(Skill.name, func.count(JobSkill.id).label("co_occurrences"))
@@ -390,7 +411,7 @@ def related_skills(skill_name: str, limit: int = Query(10, le=30)):
         .all()
     )
 
-    return {
+    result = {
         "skill": skill.name,
         "based_on_postings": base_count,
         "related_skills": [
@@ -402,3 +423,5 @@ def related_skills(skill_name: str, limit: int = Query(10, le=30)):
             for name, count in co_occurring
         ],
     }
+    cache_set(cache_key, result, ttl_seconds=3600)
+    return result
