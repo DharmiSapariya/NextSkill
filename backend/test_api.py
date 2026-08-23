@@ -511,6 +511,21 @@ def test_resume_upload_rejects_unsupported_format(auth_headers):
     assert response.status_code == 400
 
 
+def test_resume_upload_rejects_unreadable_content_instead_of_silently_finding_nothing(auth_headers):
+    # Before this, an empty/near-empty extraction (the real symptom of a
+    # scanned/image-based PDF, which pdfplumber can't read at all) looked
+    # identical to "a real resume that genuinely has no taxonomy skills" —
+    # a silent 200 with skills_found_in_resume: []. Now it's a clear 400.
+    empty_resume = _build_test_resume_docx("")
+    response = client.post(
+        "/auth/me/resume",
+        files={"file": ("resume.docx", empty_resume, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert "couldn't extract" in response.json()["detail"].lower()
+
+
 def test_resume_upload_rejects_oversized_file(auth_headers):
     from api import MAX_RESUME_SIZE_BYTES
 

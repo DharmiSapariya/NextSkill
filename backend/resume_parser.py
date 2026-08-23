@@ -37,13 +37,33 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
     return "\n".join(paragraph.text for paragraph in document.paragraphs)
 
 
+# Below this many extracted characters, treat it as extraction failure
+# rather than "a very short resume." The realistic cause at this level is a
+# scanned/image-based PDF: pdfplumber only reads an embedded text layer, so
+# a pure image scan silently returns "" — no error, just zero skills found,
+# which used to look identical to "a real resume that genuinely lists no
+# taxonomy skills" from the caller's side. There's no OCR fallback (would
+# need pytesseract + a system tesseract binary — a real dependency this
+# environment doesn't have and can't verify, so not attempted here); this
+# at least turns a silent wrong answer into an honest, actionable error.
+MIN_EXTRACTED_TEXT_CHARS = 50
+
+
 def extract_text(filename: str, file_bytes: bytes) -> str:
     lower = filename.lower()
     if lower.endswith(".pdf"):
-        return extract_text_from_pdf(file_bytes)
-    if lower.endswith(".docx"):
-        return extract_text_from_docx(file_bytes)
-    raise ValueError("Unsupported resume format — upload a PDF or DOCX file.")
+        text = extract_text_from_pdf(file_bytes)
+    elif lower.endswith(".docx"):
+        text = extract_text_from_docx(file_bytes)
+    else:
+        raise ValueError("Unsupported resume format — upload a PDF or DOCX file.")
+
+    if len(text.strip()) < MIN_EXTRACTED_TEXT_CHARS:
+        raise ValueError(
+            "Couldn't extract readable text from this file — it may be a scanned/image-based "
+            "PDF (not supported yet) or empty/corrupted. Try a text-based PDF or DOCX export instead."
+        )
+    return text
 
 
 def extract_skills_from_text(text: str) -> list[str]:
