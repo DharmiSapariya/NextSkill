@@ -58,6 +58,39 @@ def test_login_wrong_password_rejected():
     assert response.status_code == 401
 
 
+def test_login_is_rate_limited():
+    from api import limiter
+
+    limiter.reset()  # start from a clean slate — other tests share this same in-memory counter
+    email = f"test-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+
+    for _ in range(5):
+        response = client.post("/auth/login", json={"email": email, "password": "wrongpassword"})
+        assert response.status_code == 401
+
+    response = client.post("/auth/login", json={"email": email, "password": "wrongpassword"})
+    assert response.status_code == 429
+    limiter.reset()  # leave a clean slate for tests that run after this one
+
+
+def test_signup_is_rate_limited():
+    from api import limiter
+
+    limiter.reset()
+    for _ in range(5):
+        email = f"test-{uuid.uuid4().hex[:12]}@nextskill.dev"
+        response = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+        assert response.status_code == 200
+
+    response = client.post(
+        "/auth/signup",
+        json={"email": f"test-{uuid.uuid4().hex[:12]}@nextskill.dev", "password": "testpassword123"},
+    )
+    assert response.status_code == 429
+    limiter.reset()
+
+
 def test_me_requires_auth():
     response = client.get("/auth/me")
     assert response.status_code == 401  # no Authorization header at all

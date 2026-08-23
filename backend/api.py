@@ -84,7 +84,8 @@ def health():
 
 
 @app.post("/auth/signup", response_model=TokenResponse)
-def signup(body: SignupRequest):
+@limiter.limit("5/minute")
+def signup(request: Request, body: SignupRequest):
     email = body.email.lower()
     if session.query(User).filter_by(email=email).first():
         raise HTTPException(status_code=409, detail="An account with this email already exists")
@@ -96,7 +97,8 @@ def signup(body: SignupRequest):
 
 
 @app.post("/auth/login", response_model=TokenResponse)
-def login(body: LoginRequest):
+@limiter.limit("5/minute")
+def login(request: Request, body: LoginRequest):
     user = session.query(User).filter_by(email=body.email.lower()).first()
     if not user or not verify_password(body.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
