@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Date, DateTime, ForeignKey, Numeric, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Text, Date, DateTime, ForeignKey, Numeric, JSON, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from datetime import datetime, timezone
 import os
@@ -40,8 +40,12 @@ class Skill(Base):
 
 class JobSkill(Base):
     __tablename__ = "job_skills"
+    __table_args__ = (UniqueConstraint("job_id", "skill_id", name="uq_job_skills_job_id_skill_id"),)
     id = Column(Integer, primary_key=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False, index=True)
+    # No separate index=True on job_id: the unique constraint above already
+    # creates a composite (job_id, skill_id) index, which Postgres can use
+    # for job_id-only lookups via the leftmost-prefix rule.
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
     skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False, index=True)
 
 class User(Base):
