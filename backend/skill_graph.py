@@ -37,13 +37,23 @@ def _top_skills(limit: int) -> list[tuple[int, str, int]]:
     )
 
 
-def _skill_job_id_set(skill_id: int) -> set[int]:
-    return {job_id for (job_id,) in session.query(JobSkill.job_id).filter(JobSkill.skill_id == skill_id).all()}
+def _job_id_sets_for(skill_ids: list[int]) -> dict[int, set[int]]:
+    """One query for every skill's posting-id set, not one query per skill —
+    the naive per-skill version (call _skill_job_id_set once per skill in a
+    dict comprehension) is a real N+1: TOP_N_SKILLS separate round trips
+    instead of one. Cheap to avoid since job_skills.skill_id is already
+    indexed (added earlier this session) and everything needed fits in one
+    filtered, unaggregated row-per-mention query."""
+    job_id_sets: dict[int, set[int]] = {skill_id: set() for skill_id in skill_ids}
+    rows = session.query(JobSkill.skill_id, JobSkill.job_id).filter(JobSkill.skill_id.in_(skill_ids)).all()
+    for skill_id, job_id in rows:
+        job_id_sets[skill_id].add(job_id)
+    return job_id_sets
 
 
 def build_skill_co_occurrence_graph(limit: int = TOP_N_SKILLS) -> dict:
     top = _top_skills(limit)
-    job_id_sets = {skill_id: _skill_job_id_set(skill_id) for skill_id, _, _ in top}
+    job_id_sets = _job_id_sets_for([skill_id for skill_id, _, _ in top])
 
     nodes = [{"id": name, "label": name, "mention_count": mentions} for _, name, mentions in top]
 
