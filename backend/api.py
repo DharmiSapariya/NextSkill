@@ -13,7 +13,7 @@ sentry_sdk.init(
     dsn=os.getenv("SENTRY_DSN"),
     traces_sample_rate=0.1
 )
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_
 from datetime import date
 from typing import Optional
@@ -61,7 +61,11 @@ class RecommendRequest(BaseModel):
 
 class SignupRequest(BaseModel):
     email: EmailStr
-    password: str
+    # max_length=72 matches bcrypt's actual limit: passlib's bcrypt backend
+    # silently truncates anything longer, so two different passwords sharing
+    # the same first 72 bytes would otherwise both work as this account's
+    # password — confirmed directly against this exact passlib config.
+    password: str = Field(min_length=8, max_length=72)
 
 
 class LoginRequest(BaseModel):

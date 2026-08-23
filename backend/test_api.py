@@ -51,6 +51,18 @@ def test_signup_duplicate_email_rejected():
     assert response.status_code == 409
 
 
+def test_signup_rejects_password_too_short():
+    email = f"test-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    response = client.post("/auth/signup", json={"email": email, "password": "short"})
+    assert response.status_code == 422
+
+
+def test_signup_rejects_password_too_long():
+    email = f"test-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    response = client.post("/auth/signup", json={"email": email, "password": "x" * 73})
+    assert response.status_code == 422
+
+
 def test_login_wrong_password_rejected():
     email = f"test-{uuid.uuid4().hex[:12]}@nextskill.dev"
     client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
