@@ -58,12 +58,12 @@ class RecommendationHistory(Base):
     point-in-time snapshot."""
     __tablename__ = "recommendation_history"
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     target_role = Column(String, nullable=False)
     resolved_role = Column(String, nullable=False)
     skills_at_time = Column(JSON, nullable=False)
     recommendations = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
 
     user = relationship("User")
 
