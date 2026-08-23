@@ -4,6 +4,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import os
+import secrets
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,7 +18,7 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_
 from datetime import timedelta
 from typing import Literal, Optional
-from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, session
+from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from resume_parser import parse_resume
@@ -187,6 +188,60 @@ def recommendation_progress(
         "skills_still_open": sorted(first_gaps & last_gaps),
         "new_gaps": sorted(last_gaps - first_gaps),  # weren't flagged before, are now (market shifted, or skills changed)
     }
+
+
+@app.post("/auth/me/history/{history_id}/share")
+def share_recommendation(history_id: int, current_user: User = Depends(get_current_user)):
+    """Publishes one past /recommend or /recommend/evidence run as a public,
+    login-free link — Phase 4's "shareable public skill-report pages."
+    Nothing is shareable until a user explicitly chooses to publish it;
+    the rest of their history stays private."""
+    entry = session.query(RecommendationHistory).filter_by(id=history_id, user_id=current_user.id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="No recommendation history entry found with that id")
+
+    token = secrets.token_urlsafe(24)
+    shared = SharedReport(
+        token=token,
+        user_id=current_user.id,
+        target_role=entry.target_role,
+        resolved_role=entry.resolved_role,
+        skills_at_time=entry.skills_at_time,
+        recommendations=entry.recommendations,
+    )
+    session.add(shared)
+    session.commit()
+
+    return {"token": token, "share_path": f"/reports/{token}"}
+
+
+@app.get("/reports/{token}")
+def get_shared_report(token: str):
+    """Public, no auth required — this is the whole point of a shareable
+    link. Returns only the report snapshot, never the owning user's email
+    or id."""
+    shared = session.query(SharedReport).filter_by(token=token).first()
+    if not shared:
+        raise HTTPException(status_code=404, detail="No shared report found for this link")
+    return {
+        "target_role": shared.target_role,
+        "resolved_role": shared.resolved_role,
+        "skills_at_time": shared.skills_at_time,
+        "recommendations": shared.recommendations,
+        "shared_at": shared.created_at.isoformat(),
+    }
+
+
+@app.delete("/auth/me/history/shared/{token}")
+def revoke_shared_report(token: str, current_user: User = Depends(get_current_user)):
+    """Revokes a previously published link — owner-only, so a shared report
+    isn't permanently public with no way to take it back."""
+    shared = session.query(SharedReport).filter_by(token=token, user_id=current_user.id).first()
+    if not shared:
+        raise HTTPException(status_code=404, detail="No shared report found for this link")
+    session.delete(shared)
+    session.commit()
+    return {"revoked": True}
 
 
 MAX_RESUME_SIZE_BYTES = 5 * 1024 * 1024  # 5MB — generous for a resume, small enough to bound memory/CPU per upload

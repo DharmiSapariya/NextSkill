@@ -547,3 +547,100 @@ def test_progress_shows_closed_and_open_gaps(auth_headers):
     assert data["runs_recorded"] == 2
     assert "Docker" in data["skills_closed"]
     assert "docker" not in [s.lower() for s in data["skills_still_open"]]  # shouldn't show up in both
+
+
+def _make_history_entry(headers, target_role):
+    client.post("/recommend", json={"skills": ["Python"], "target_role": target_role}, headers=headers)
+    entries = client.get(f"/auth/me/history?target_role={target_role}", headers=headers).json()["results"]
+    return entries[0]["id"]  # most recent first
+
+
+def test_share_requires_auth():
+    response = client.post("/auth/me/history/1/share")
+    assert response.status_code == 401
+
+
+def test_share_rejects_nonexistent_history_id(auth_headers):
+    response = client.post("/auth/me/history/999999999/share", headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_share_creates_a_publicly_viewable_report(auth_headers):
+    history_id = _make_history_entry(auth_headers, "product manager")
+
+    share_response = client.post(f"/auth/me/history/{history_id}/share", headers=auth_headers)
+    assert share_response.status_code == 200
+    token = share_response.json()["token"]
+
+    # No Authorization header at all — this is the whole point.
+    public_response = client.get(f"/reports/{token}")
+    assert public_response.status_code == 200
+    data = public_response.json()
+    assert data["resolved_role"] == "product manager"
+    assert data["skills_at_time"] == ["Python"]
+    assert "recommendations" in data
+    assert "shared_at" in data
+
+
+def test_get_shared_report_for_unknown_token_is_404():
+    response = client.get("/reports/this-token-does-not-exist")
+    assert response.status_code == 404
+
+
+def test_users_cannot_share_each_others_history():
+    from api import limiter
+
+    limiter.reset()  # this test signs up 2 users — same shared-counter caveat as the rate-limit tests
+    owner_email = f"share-owner-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    owner_signup = client.post("/auth/signup", json={"email": owner_email, "password": "testpassword123"})
+    owner_headers = {"Authorization": f"Bearer {owner_signup.json()['access_token']}"}
+    history_id = _make_history_entry(owner_headers, "ui ux designer")
+
+    intruder_email = f"share-intruder-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    intruder_signup = client.post("/auth/signup", json={"email": intruder_email, "password": "testpassword123"})
+    intruder_headers = {"Authorization": f"Bearer {intruder_signup.json()['access_token']}"}
+
+    response = client.post(f"/auth/me/history/{history_id}/share", headers=intruder_headers)
+    assert response.status_code == 404  # not "someone else's, forbidden" — doesn't leak that it exists
+
+
+def test_owner_can_revoke_a_shared_report():
+    email = f"revoke-owner-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    history_id = _make_history_entry(headers, "cloud engineer")
+
+    token = client.post(f"/auth/me/history/{history_id}/share", headers=headers).json()["token"]
+    assert client.get(f"/reports/{token}").status_code == 200
+
+    revoke_response = client.delete(f"/auth/me/history/shared/{token}", headers=headers)
+    assert revoke_response.status_code == 200
+    assert revoke_response.json() == {"revoked": True}
+
+    assert client.get(f"/reports/{token}").status_code == 404
+
+
+def test_revoke_requires_auth():
+    response = client.delete("/auth/me/history/shared/some-token")
+    assert response.status_code == 401
+
+
+def test_non_owner_cannot_revoke_someone_elses_shared_report():
+    from api import limiter
+
+    limiter.reset()  # this test signs up 2 users — same shared-counter caveat as the rate-limit tests
+    owner_email = f"revoke-target-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    owner_signup = client.post("/auth/signup", json={"email": owner_email, "password": "testpassword123"})
+    owner_headers = {"Authorization": f"Bearer {owner_signup.json()['access_token']}"}
+    history_id = _make_history_entry(owner_headers, "database administrator")
+    token = client.post(f"/auth/me/history/{history_id}/share", headers=owner_headers).json()["token"]
+
+    intruder_email = f"revoke-intruder-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    intruder_signup = client.post("/auth/signup", json={"email": intruder_email, "password": "testpassword123"})
+    intruder_headers = {"Authorization": f"Bearer {intruder_signup.json()['access_token']}"}
+
+    response = client.delete(f"/auth/me/history/shared/{token}", headers=intruder_headers)
+    assert response.status_code == 404
+
+    # Confirm it's still live — the failed revoke attempt from a non-owner didn't delete it.
+    assert client.get(f"/reports/{token}").status_code == 200

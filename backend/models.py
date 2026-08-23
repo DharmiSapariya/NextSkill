@@ -72,6 +72,25 @@ class RecommendationHistory(Base):
 
     user = relationship("User")
 
+class SharedReport(Base):
+    """A user-chosen publicly-viewable snapshot of one RecommendationHistory
+    entry — Phase 4's "shareable public skill-report pages," a link instead
+    of a login-gated result. Deliberately a separate table and an explicit
+    action (POST /auth/me/history/{id}/share), not every /recommend call
+    auto-shareable: a user's full history is private by default, only what
+    they choose to publish is public."""
+    __tablename__ = "shared_reports"
+    id = Column(Integer, primary_key=True)
+    token = Column(String, unique=True, nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    target_role = Column(String, nullable=False)
+    resolved_role = Column(String, nullable=False)
+    skills_at_time = Column(JSON, nullable=False)
+    recommendations = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    user = relationship("User")
+
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 session = Session()
