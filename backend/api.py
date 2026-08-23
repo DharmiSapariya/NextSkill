@@ -25,6 +25,7 @@ from resume_parser import parse_resume
 from match_score import compute_match_score
 from salary_predict import predict_salary
 from role_graph import build_transition_graph, nearest_roles, TRACKED_ROLES
+from skill_graph import build_skill_co_occurrence_graph, TOP_N_SKILLS
 from role_matcher import resolve_role
 from cache import cache_get, cache_set
 from seniority import infer_seniority, as_postgres_regex, SENIORITY_PATTERNS
@@ -688,4 +689,18 @@ def related_skills(skill_name: str, limit: int = Query(10, ge=1, le=30)):
         ],
     }
     cache_set(cache_key, result, ttl_seconds=3600)
+    return result
+
+
+@app.get("/skills/co-occurrence-graph")
+def skill_co_occurrence_graph(limit: int = Query(TOP_N_SKILLS, ge=5, le=60)):
+    """Graph-shaped data for a force-directed skill co-occurrence
+    visualization — same nodes/edges pattern as /roles/transition-graph,
+    applied to skills instead of roles."""
+    cache_key = f"skill-co-occurrence-graph:{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+    result = build_skill_co_occurrence_graph(limit=limit)
+    cache_set(cache_key, result, ttl_seconds=86400)  # data only changes when the pipeline re-ingests
     return result

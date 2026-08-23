@@ -466,6 +466,21 @@ def test_transition_graph_returns_nodes_and_edges():
     assert all({"source", "target", "weight"} <= edge.keys() for edge in data["edges"])
 
 
+def test_skill_co_occurrence_graph_returns_nodes_and_edges():
+    response = client.get("/skills/co-occurrence-graph")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["nodes"]) > 0
+    assert all({"id", "label", "mention_count"} <= node.keys() for node in data["nodes"])
+    assert all({"source", "target", "weight", "shared_posting_count"} <= edge.keys() for edge in data["edges"])
+
+
+def test_skill_co_occurrence_graph_respects_limit():
+    response = client.get("/skills/co-occurrence-graph?limit=5")
+    assert response.status_code == 200
+    assert len(response.json()["nodes"]) <= 5
+
+
 def test_nearest_roles_for_known_role():
     response = client.get("/roles/data scientist/nearest?limit=3")
     assert response.status_code == 200
