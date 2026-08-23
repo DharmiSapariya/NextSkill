@@ -399,6 +399,41 @@ def _classify_trend(previous_share: float, current_share: float) -> tuple[float 
     return change_pct, "flat"
 
 
+# Above this current-period share, a skill counts as "widespread" rather
+# than "niche" for lifecycle classification — e.g. Python's ~57% share is
+# obviously mature, while a skill mentioned in 1% of postings isn't "mature"
+# just because its trend happens to be flat this period.
+LIFECYCLE_SHARE_THRESHOLD_PCT = 5.0
+
+
+def _classify_lifecycle(previous_share: float, current_share: float, direction: str) -> str:
+    """Roadmap Phase 3: "skill lifecycle labels — emerging / growing / mature
+    / declining, not just this month's up-or-down." A single 2-period trend
+    direction alone can't tell "just starting to take off" (emerging) apart
+    from "already everywhere, still climbing" (growing) — this combines
+    direction with how widespread the skill already is.
+
+    This is a documented heuristic on top of the same 2-period comparison
+    /trends already caveats as "not a forecast" — with the ~2 months of real
+    history this dataset currently has, that's an honest limit. Two extra
+    outcomes beyond the roadmap's four core labels exist for the same
+    reason /trends returns explicit "new"/"flat" rather than forcing a
+    misleading guess: "insufficient_data" (a skill with no presence in
+    either period — nothing to classify) and "niche" (flat and never
+    widespread — not accelerating, not established, not going away either).
+    """
+    if previous_share == 0 and current_share == 0:
+        return "insufficient_data"
+    if direction == "falling":
+        return "declining"
+    if direction == "new":
+        return "emerging"
+    if direction == "rising":
+        return "growing" if current_share >= LIFECYCLE_SHARE_THRESHOLD_PCT else "emerging"
+    # direction == "flat"
+    return "mature" if current_share >= LIFECYCLE_SHARE_THRESHOLD_PCT else "niche"
+
+
 TREND_WINDOW_DAYS = 30
 
 
@@ -448,6 +483,7 @@ def skill_trend(skill_name: str):
     previous_share = round((previous_mentions / previous_total) * 100, 2) if previous_total else 0
     current_share = round((current_mentions / current_total) * 100, 2) if current_total else 0
     change_pct, direction = _classify_trend(previous_share, current_share)
+    lifecycle = _classify_lifecycle(previous_share, current_share, direction)
 
     total_mentions = session.query(JobSkill).filter_by(skill_id=skill.id).count()
 
@@ -471,17 +507,21 @@ def skill_trend(skill_name: str):
         },
         "change_pct": change_pct,
         "trend": direction,
+        "lifecycle": lifecycle,
         "methodology": (
             f"Compares two adjacent {TREND_WINDOW_DAYS}-day windows, anchored to the most "
             f"recently ingested posting, restricted to a fixed set of {len(CORE_TREND_ROLES)} "
             "core roles (software/backend/frontend/full-stack/data/ML roles) to control for "
             "search coverage expanding from a smaller initial role set to 21 roles over the "
-            "project's timeline."
+            "project's timeline. `lifecycle` combines `trend` with whether current_period's "
+            f"share is above {LIFECYCLE_SHARE_THRESHOLD_PCT}% (\"widespread\") to distinguish "
+            "e.g. emerging (rising, still small) from growing (rising, already widespread)."
         ),
         "caveat": (
             "Still a 2-period comparison, not a forecast. A real time-series model (e.g. "
             "rolling trend or Prophet/ARIMA) needs several more windows of consistent data "
-            "before it would add real signal over this simpler comparison."
+            "before it would add real signal over this simpler comparison. `lifecycle` is a "
+            "heuristic on the same 2-period data, not a separately validated model."
         ),
     }
     cache_set(cache_key, result, ttl_seconds=3600)

@@ -223,6 +223,29 @@ def test_classify_trend_covers_all_four_directions():
     assert _classify_trend(20.0, 5.0) == (-75.0, "falling")
 
 
+def test_classify_lifecycle_covers_all_six_outcomes():
+    from api import _classify_lifecycle, _classify_trend
+
+    def lifecycle(previous_share, current_share):
+        _, direction = _classify_trend(previous_share, current_share)
+        return _classify_lifecycle(previous_share, current_share, direction)
+
+    assert lifecycle(0, 0) == "insufficient_data"
+    assert lifecycle(0, 1.0) == "emerging"  # brand new, share doesn't matter yet
+    assert lifecycle(1.0, 2.5) == "emerging"  # rising, still under the 5% widespread threshold
+    assert lifecycle(10.0, 20.0) == "growing"  # rising, already widespread
+    assert lifecycle(20.0, 21.0) == "mature"  # flat, widespread
+    assert lifecycle(1.0, 1.1) == "niche"  # flat, never widespread
+    assert lifecycle(20.0, 5.0) == "declining"  # falling regardless of share
+
+
+def test_trend_includes_lifecycle_label():
+    response = client.get("/trends/Python")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["lifecycle"] in {"insufficient_data", "declining", "emerging", "growing", "mature", "niche"}
+
+
 def test_trend_for_unknown_skill():
     response = client.get("/trends/DefinitelyNotARealSkillXYZ")
     assert response.status_code == 404
