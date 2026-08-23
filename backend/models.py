@@ -28,7 +28,7 @@ class Job(Base):
     description = Column(Text)
     category = Column(String)
     source = Column(String, nullable=False)
-    posted_date = Column(Date)
+    posted_date = Column(Date, index=True)
     salary_min = Column(Numeric, nullable=True)
     salary_max = Column(Numeric, nullable=True)
 
