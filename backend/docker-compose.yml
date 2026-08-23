@@ -40,5 +40,17 @@ services:
       redis:
         condition: service_healthy
 
+  scheduler:
+    build: .
+    command: python scheduler.py
+    environment:
+      DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@db:5432/job_market
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      INGESTION_CRON: ${INGESTION_CRON:-0 3 * * *}
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
