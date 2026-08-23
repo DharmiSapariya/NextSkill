@@ -18,7 +18,6 @@ python-docx>=1.1
 scikit-learn>=1.5
 joblib>=1.4
 numpy>=1.26
-pytest>=8.2
 sentry-sdk>=2.0
 sentence-transformers>=3.0  # semantic role matching (role_matcher.py) — pulls in torch, meaningfully increases image size; see Dockerfile for build-time model caching
 apscheduler>=3.10  # scheduler.py — runs the ingestion pipeline on a cron schedule

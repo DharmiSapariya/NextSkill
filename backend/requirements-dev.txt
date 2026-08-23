@@ -1,0 +1,4 @@
+# Test-only dependencies — not needed by the deployed API, kept out of
+# requirements.txt so the production image doesn't ship a test runner.
+-r requirements.txt
+pytest>=8.2
