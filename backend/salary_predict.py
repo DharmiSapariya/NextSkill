@@ -13,19 +13,31 @@ import numpy as np
 MODEL_DIR = "model_artifacts"
 _model = None
 _features = None
+_loaded_mtime = None
 
 
 def _load():
-    global _model, _features
-    if _model is not None:
-        return
+    """Reloads whenever the model file's mtime changes, not just once ever.
+
+    train_model() now runs on every scheduled ingestion tick (pipeline.py),
+    but the scheduler is a separate long-lived process from the API
+    (scheduler.py is explicit about that). Without checking mtime, the API
+    process would cache whatever model was loaded on its first prediction
+    request and never notice a retrain happened until it was restarted —
+    silently serving stale predictions indefinitely.
+    """
+    global _model, _features, _loaded_mtime
     model_path = f"{MODEL_DIR}/salary_model.joblib"
     features_path = f"{MODEL_DIR}/salary_model_features.json"
     if not (os.path.exists(model_path) and os.path.exists(features_path)):
         return
+    current_mtime = os.path.getmtime(model_path)
+    if _model is not None and current_mtime == _loaded_mtime:
+        return
     _model = joblib.load(model_path)
     with open(features_path) as f:
         _features = json.load(f)
+    _loaded_mtime = current_mtime
 
 
 def _role_bucket(title: str, role_buckets: list[str]) -> str:

@@ -1,7 +1,7 @@
 """Orchestrates the ingestion pipeline: fetch new postings, load them,
-extract skills, merge duplicates. This is what run manually via the README's
-"Getting Started" steps up to now; scheduler.py runs this automatically
-instead.
+extract skills, merge duplicates, retrain the salary model. This is what run
+manually via the README's "Getting Started" steps up to now; scheduler.py
+runs this automatically instead.
 
 Deliberately excludes extract_skillner.py — that needs spaCy/skillNer
 (requirements-nlp.txt, not installed by default) and is a heavier NLP pass
@@ -12,6 +12,7 @@ from fetch_adzuna import fetch_postings
 from load_data import load_postings
 from extract_languages import extract_supplementary_skills
 from merge_duplicate_skills import merge_duplicate_skills
+from train_salary_model import train_model
 
 
 def run_full_pipeline() -> dict:
@@ -25,6 +26,12 @@ def run_full_pipeline() -> dict:
     matches = extract_supplementary_skills()
     merged = merge_duplicate_skills()
 
+    # Retraining only matters when new data actually landed, which "fetched
+    # > 0" already established — no separate guard needed here. train_model()
+    # itself skips cleanly (status: "skipped") if there still aren't 30
+    # salary-labeled postings yet, same as before this was wired in.
+    training = train_model()
+
     return {
         "status": "ok",
         "fetched": fetched,
@@ -32,6 +39,7 @@ def run_full_pipeline() -> dict:
         "skipped_duplicates": skipped,
         "skill_matches_added": matches,
         "duplicate_skills_merged": merged,
+        "salary_model_retrain": training,
     }
 
 

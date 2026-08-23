@@ -75,12 +75,14 @@ def build_dataset():
     return np.array(X), np.array(y), roles, top_skills
 
 
-def main():
+def train_model() -> dict:
+    """Returns a status dict rather than just printing, so pipeline.py can
+    call this on every scheduled ingestion tick and report what happened —
+    same pattern as fetch_postings()/load_postings()/merge_duplicate_skills()."""
     X, y, roles, top_skills = build_dataset()
 
     if len(X) < 30:
-        print(f"Only {len(X)} salary-labeled postings found — not enough to train a useful model yet.")
-        return
+        return {"status": "skipped", "reason": f"only {len(X)} salary-labeled postings, need at least 30"}
 
     role_buckets_with_other = ROLE_BUCKETS + ["other"]
     role_dummies = np.array([[1 if r == role else 0 for role in role_buckets_with_other] for r in roles])
@@ -93,15 +95,24 @@ def main():
 
     preds = model.predict(X_test)
     mae = mean_absolute_error(y_test, preds)
-    print(f"Trained on {len(X_train)} rows, tested on {len(X_test)}. MAE: ${mae:,.0f}")
 
     os.makedirs(MODEL_DIR, exist_ok=True)
     joblib.dump(model, f"{MODEL_DIR}/salary_model.joblib")
     with open(f"{MODEL_DIR}/salary_model_features.json", "w") as f:
         json.dump({"top_skills": top_skills, "role_buckets": role_buckets_with_other}, f)
 
-    print(f"Saved model to {MODEL_DIR}/salary_model.joblib")
+    return {
+        "status": "trained",
+        "trained_on": len(X_train),
+        "tested_on": len(X_test),
+        "mae": round(mae, 2),
+    }
 
 
 if __name__ == "__main__":
-    main()
+    result = train_model()
+    if result["status"] == "trained":
+        print(f"Trained on {result['trained_on']} rows, tested on {result['tested_on']}. MAE: ${result['mae']:,.0f}")
+        print(f"Saved model to {MODEL_DIR}/salary_model.joblib")
+    else:
+        print(result["reason"])

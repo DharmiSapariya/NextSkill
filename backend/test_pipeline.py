@@ -10,6 +10,7 @@ import uuid
 
 import pytest
 
+import pipeline
 from fetch_adzuna import fetch_postings
 from load_data import load_postings
 from merge_duplicate_skills import merge_duplicate_skills
@@ -28,6 +29,24 @@ def test_pipeline_reports_skipped_without_credentials(monkeypatch):
     monkeypatch.delenv("ADZUNA_APP_KEY", raising=False)
     result = run_full_pipeline()
     assert result == {"status": "skipped", "reason": "ADZUNA_APP_ID / ADZUNA_APP_KEY not set"}
+
+
+def test_pipeline_retrains_salary_model_when_new_data_arrives(monkeypatch):
+    # train_model() used to be a manual-only script — the scheduled pipeline
+    # ingested new salary-labeled postings every tick but never retrained on
+    # them. Confirm the wiring actually calls it, without needing real
+    # Adzuna credentials or a slow real RandomForest fit in this test.
+    monkeypatch.setattr(pipeline, "fetch_postings", lambda: 3)
+    monkeypatch.setattr(pipeline, "load_postings", lambda: (3, 0))
+    monkeypatch.setattr(pipeline, "extract_supplementary_skills", lambda: 2)
+    monkeypatch.setattr(pipeline, "merge_duplicate_skills", lambda: 0)
+
+    calls = []
+    monkeypatch.setattr(pipeline, "train_model", lambda: calls.append(1) or {"status": "trained", "trained_on": 1})
+
+    result = pipeline.run_full_pipeline()
+    assert len(calls) == 1
+    assert result["salary_model_retrain"] == {"status": "trained", "trained_on": 1}
 
 
 def test_load_postings_is_idempotent(tmp_path):
