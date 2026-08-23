@@ -124,7 +124,7 @@ def update_my_skills(body: SkillsUpdateRequest, current_user: User = Depends(get
 @app.get("/auth/me/history")
 def recommendation_history(
     target_role: Optional[str] = Query(None, description="Filter to a specific target role"),
-    limit: int = Query(20, le=100),
+    limit: int = Query(20, ge=1, le=100),
     current_user: User = Depends(get_current_user),
 ):
     """Past /recommend and /recommend/evidence calls for the logged-in user —
@@ -256,7 +256,7 @@ def transition_graph():
 
 
 @app.get("/roles/{role}/nearest")
-def role_nearest(role: str, limit: int = Query(5, le=20)):
+def role_nearest(role: str, limit: int = Query(5, ge=1, le=20)):
     role_resolution = resolve_role(role)
     resolved_role = role_resolution["resolved"]
     if resolved_role not in TRACKED_ROLES:
@@ -275,7 +275,7 @@ def role_nearest(role: str, limit: int = Query(5, le=20)):
 def list_jobs(
     role: Optional[str] = Query(None, description="Filter by keyword in job title"),
     location: Optional[str] = Query(None, description="Filter by keyword in location"),
-    limit: int = Query(20, le=100, description="Max results per page (max 100)"),
+    limit: int = Query(20, ge=1, le=100, description="Max results per page (max 100)"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ):
     query = session.query(Job)
@@ -322,7 +322,7 @@ def get_job(job_id: int):
 
 
 @app.get("/companies/top")
-def top_companies(limit: int = Query(10, le=50)):
+def top_companies(limit: int = Query(10, ge=1, le=50)):
     results = (
         session.query(Company.name, func.count(Job.id).label("postings"))
         .join(Job, Job.company_id == Company.id)
@@ -487,7 +487,7 @@ def recommend_with_evidence(request: Request, body: RecommendRequest, current_us
 
 
 @app.get("/skills/{skill_name}/related")
-def related_skills(skill_name: str, limit: int = Query(10, le=30)):
+def related_skills(skill_name: str, limit: int = Query(10, ge=1, le=30)):
     """Find skills that commonly co-occur with the given skill in the same postings —
     e.g. what else does a company usually ask for alongside React?"""
     cache_key = f"related:{skill_name.lower()}:{limit}"

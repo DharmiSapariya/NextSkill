@@ -143,6 +143,26 @@ def test_get_job_not_found():
     assert response.status_code == 404
 
 
+def test_list_jobs_rejects_non_positive_limit():
+    # limit=-1 used to reach SQLAlchemy's .limit() unvalidated and crash with
+    # a raw psycopg2 "LIMIT must not be negative" 500 instead of a clean 422.
+    assert client.get("/jobs?limit=-1").status_code == 422
+    assert client.get("/jobs?limit=0").status_code == 422
+
+
+def test_limit_validation_applies_to_every_paginated_endpoint(auth_headers):
+    # Same missing ge=1 bug existed on every other `limit` query param in the
+    # API, not just /jobs — confirm all of them are actually fixed.
+    for path in [
+        "/companies/top?limit=-1",
+        "/skills/Python/related?limit=-1",
+        "/roles/backend%20developer/nearest?limit=-1",
+        "/auth/me/history?limit=-1",
+    ]:
+        response = client.get(path, headers=auth_headers)
+        assert response.status_code == 422, f"{path} returned {response.status_code}, expected 422"
+
+
 def test_top_companies():
     response = client.get("/companies/top?limit=3")
     assert response.status_code == 200
