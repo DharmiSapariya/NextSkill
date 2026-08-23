@@ -15,7 +15,7 @@ sentry_sdk.init(
 )
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_
-from datetime import date
+from datetime import timedelta
 from typing import Optional
 from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
@@ -342,7 +342,7 @@ def top_companies(limit: int = Query(10, ge=1, le=50)):
 # Rather than comparing against ALL postings (which mixes roles that were
 # only searched for starting in the later, wider fetch, and inflates or
 # deflates shares for reasons unrelated to real market demand), we restrict
-# both months to this fixed, currently-defined core set so the denominator
+# both periods to this fixed, currently-defined core set so the denominator
 # means the same thing in both periods. This is a deliberate, documented
 # choice — not a full fix for the missing historical data, but it removes
 # the specific confound we diagnosed.
@@ -384,6 +384,46 @@ def _total_postings_in_range(start, end):
     )
 
 
+def _classify_trend(previous_share: float, current_share: float) -> tuple[float | None, str]:
+    """Pure classification logic, pulled out of skill_trend() so the four
+    branches (new / flat / rising / falling) can be unit tested directly —
+    real seed/production data rarely has a convenient mix of periods with
+    and without prior mentions on demand."""
+    if previous_share == 0:
+        return None, ("new" if current_share > 0 else "flat")
+    change_pct = round(((current_share - previous_share) / previous_share) * 100, 1)
+    if change_pct > 15:
+        return change_pct, "rising"
+    if change_pct < -15:
+        return change_pct, "falling"
+    return change_pct, "flat"
+
+
+TREND_WINDOW_DAYS = 30
+
+
+def _trend_window():
+    """Two adjacent TREND_WINDOW_DAYS-day windows, anchored to the most
+    recently ingested core-role posting rather than wall-clock "today".
+
+    Anchoring to real time was the original bug here: the comparison was
+    hardcoded to June vs. July 2026, so it never moved even as the scheduled
+    ingestion pipeline (Phase 2) brought in new postings every day — trends
+    were permanently frozen on two fixed calendar months. Anchoring to the
+    latest ingested posted_date instead means this endpoint's "current"
+    period is always genuinely current relative to the data actually on
+    hand, and it's deterministic for tests regardless of what day they run.
+    Returns None if there's no core-role data at all yet.
+    """
+    latest = session.query(func.max(Job.posted_date)).filter(_core_role_filter()).scalar()
+    if latest is None:
+        return None
+    current_end = latest + timedelta(days=1)  # exclusive upper bound
+    current_start = current_end - timedelta(days=TREND_WINDOW_DAYS)
+    previous_start = current_start - timedelta(days=TREND_WINDOW_DAYS)
+    return previous_start, current_start, current_end
+
+
 @app.get("/trends/{skill_name}")
 def skill_trend(skill_name: str):
     cache_key = f"trend:{skill_name.lower()}"
@@ -395,47 +435,52 @@ def skill_trend(skill_name: str):
     if not skill:
         raise HTTPException(status_code=404, detail=f"No data found for skill '{skill_name}'")
 
-    june_start, july_start, aug_start = date(2026, 6, 1), date(2026, 7, 1), date(2026, 8, 1)
+    window = _trend_window()
+    if window is None:
+        raise HTTPException(status_code=503, detail="No posting data ingested yet for the tracked core roles.")
+    previous_start, current_start, current_end = window
 
-    june_mentions = _mentions_in_range(skill.id, june_start, july_start)
-    july_mentions = _mentions_in_range(skill.id, july_start, aug_start)
-    june_total = _total_postings_in_range(june_start, july_start)
-    july_total = _total_postings_in_range(july_start, aug_start)
+    previous_mentions = _mentions_in_range(skill.id, previous_start, current_start)
+    current_mentions = _mentions_in_range(skill.id, current_start, current_end)
+    previous_total = _total_postings_in_range(previous_start, current_start)
+    current_total = _total_postings_in_range(current_start, current_end)
 
-    june_share = round((june_mentions / june_total) * 100, 2) if june_total else 0
-    july_share = round((july_mentions / july_total) * 100, 2) if july_total else 0
-
-    if june_share == 0:
-        direction = "new" if july_share > 0 else "flat"
-        change_pct = None
-    else:
-        change_pct = round(((july_share - june_share) / june_share) * 100, 1)
-        if change_pct > 15:
-            direction = "rising"
-        elif change_pct < -15:
-            direction = "falling"
-        else:
-            direction = "flat"
+    previous_share = round((previous_mentions / previous_total) * 100, 2) if previous_total else 0
+    current_share = round((current_mentions / current_total) * 100, 2) if current_total else 0
+    change_pct, direction = _classify_trend(previous_share, current_share)
 
     total_mentions = session.query(JobSkill).filter_by(skill_id=skill.id).count()
 
     result = {
         "skill": skill.name,
         "total_mentions": total_mentions,
-        "june_2026": {"mentions": june_mentions, "of_postings": june_total, "share_pct": june_share},
-        "july_2026": {"mentions": july_mentions, "of_postings": july_total, "share_pct": july_share},
+        "window_days": TREND_WINDOW_DAYS,
+        "previous_period": {
+            "start": previous_start.isoformat(),
+            "end": current_start.isoformat(),
+            "mentions": previous_mentions,
+            "of_postings": previous_total,
+            "share_pct": previous_share,
+        },
+        "current_period": {
+            "start": current_start.isoformat(),
+            "end": current_end.isoformat(),
+            "mentions": current_mentions,
+            "of_postings": current_total,
+            "share_pct": current_share,
+        },
         "change_pct": change_pct,
         "trend": direction,
         "methodology": (
-            f"Comparison restricted to a fixed set of {len(CORE_TREND_ROLES)} core roles "
-            "(software/backend/frontend/full-stack/data/ML roles) present in both months, "
-            "to control for search coverage expanding from a smaller initial role set to 21 "
-            "roles over the project's timeline."
+            f"Compares two adjacent {TREND_WINDOW_DAYS}-day windows, anchored to the most "
+            f"recently ingested posting, restricted to a fixed set of {len(CORE_TREND_ROLES)} "
+            "core roles (software/backend/frontend/full-stack/data/ML roles) to control for "
+            "search coverage expanding from a smaller initial role set to 21 roles over the "
+            "project's timeline."
         ),
         "caveat": (
-            "This removes the specific coverage-expansion artifact identified during development, "
-            "but is still a 2-month comparison — not a forecast. A real time-series model "
-            "(e.g. rolling trend or Prophet/ARIMA) needs several more months of consistent data "
+            "Still a 2-period comparison, not a forecast. A real time-series model (e.g. "
+            "rolling trend or Prophet/ARIMA) needs several more windows of consistent data "
             "before it would add real signal over this simpler comparison."
         ),
     }

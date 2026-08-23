@@ -178,6 +178,49 @@ def test_trend_for_known_skill():
     data = response.json()
     assert data["skill"] == "Python"
     assert data["total_mentions"] > 0
+    assert "previous_period" in data and "current_period" in data
+    assert data["current_period"]["start"] < data["current_period"]["end"]
+    assert data["previous_period"]["end"] == data["current_period"]["start"]
+
+
+def test_trend_window_advances_with_new_data():
+    # The window used to be hardcoded to June/July 2026 — it never moved
+    # even as new postings were ingested. Confirm it actually tracks the
+    # latest ingested core-role posting instead of a fixed calendar date.
+    from datetime import timedelta
+
+    from api import _trend_window
+    from models import Company, Job, session
+
+    before = _trend_window()
+
+    company = session.query(Company).first()
+    later_date = before[2] + timedelta(days=5)  # 5 days past the current window's end
+    session.add(Job(
+        external_id=f"trend-window-test-{uuid.uuid4().hex[:12]}",
+        title="Software Engineer",
+        company_id=company.id,
+        location="Remote",
+        description="",
+        category="IT Jobs",
+        source="test",
+        posted_date=later_date,
+    ))
+    session.commit()
+
+    after = _trend_window()
+    assert after[2] == later_date + timedelta(days=1)
+    assert after[2] > before[2]
+
+
+def test_classify_trend_covers_all_four_directions():
+    from api import _classify_trend
+
+    assert _classify_trend(0, 0) == (None, "flat")
+    assert _classify_trend(0, 5.0) == (None, "new")
+    assert _classify_trend(10.0, 10.5) == (5.0, "flat")  # +5% is within the +-15% flat band
+    assert _classify_trend(10.0, 20.0) == (100.0, "rising")
+    assert _classify_trend(20.0, 5.0) == (-75.0, "falling")
 
 
 def test_trend_for_unknown_skill():
