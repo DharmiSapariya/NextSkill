@@ -302,3 +302,72 @@ def test_nearest_roles_for_known_role():
 def test_nearest_roles_for_untracked_role():
     response = client.get("/roles/underwater basket weaver/nearest")
     assert response.status_code == 404
+
+
+def test_history_requires_auth():
+    response = client.get("/auth/me/history")
+    assert response.status_code == 401
+
+
+def test_history_empty_for_new_user(auth_headers):
+    response = client.get("/auth/me/history", headers=auth_headers)
+    assert response.status_code == 200
+    # auth_headers is module-scoped and may have made /recommend calls in
+    # earlier tests, so just check the shape, not emptiness.
+    assert "results" in response.json()
+
+
+def test_recommend_call_gets_recorded_in_history(auth_headers):
+    before = len(client.get("/auth/me/history?target_role=data scientist", headers=auth_headers).json()["results"])
+
+    client.post(
+        "/recommend",
+        json={"skills": ["Python", "SQL"], "target_role": "data scientist"},
+        headers=auth_headers,
+    )
+
+    after_response = client.get("/auth/me/history?target_role=data scientist", headers=auth_headers)
+    assert after_response.status_code == 200
+    after = after_response.json()["results"]
+    assert len(after) == before + 1
+    latest = after[0]  # most recent first
+    assert latest["target_role"] == "data scientist"
+    assert latest["skills_at_time"] == ["Python", "SQL"]
+    assert "recommendations" in latest
+    assert "created_at" in latest
+
+
+def test_history_filters_by_role(auth_headers):
+    client.post("/recommend", json={"skills": ["Python"], "target_role": "backend developer"}, headers=auth_headers)
+    response = client.get("/auth/me/history?target_role=backend developer", headers=auth_headers)
+    assert response.status_code == 200
+    for entry in response.json()["results"]:
+        assert entry["resolved_role"] == "backend developer"
+
+
+def test_progress_requires_at_least_two_runs(auth_headers):
+    email_specific_role = "cybersecurity analyst"  # a role this test's user hasn't called yet
+    response = client.get(f"/auth/me/history/progress?target_role={email_specific_role}", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["runs_recorded"] == 0
+    assert "message" in data
+
+
+def test_progress_shows_closed_and_open_gaps(auth_headers):
+    target_role = "devops engineer"
+
+    # First run: missing Docker and Kubernetes.
+    client.put("/auth/me/skills", json={"skills": ["Linux"]}, headers=auth_headers)
+    client.post("/recommend", json={"target_role": target_role}, headers=auth_headers)
+
+    # Second run: picked up Docker in the meantime.
+    client.put("/auth/me/skills", json={"skills": ["Linux", "Docker"]}, headers=auth_headers)
+    client.post("/recommend", json={"target_role": target_role}, headers=auth_headers)
+
+    response = client.get(f"/auth/me/history/progress?target_role={target_role}", headers=auth_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["runs_recorded"] == 2
+    assert "Docker" in data["skills_closed"]
+    assert "docker" not in [s.lower() for s in data["skills_still_open"]]  # shouldn't show up in both

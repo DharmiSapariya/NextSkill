@@ -17,7 +17,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, or_
 from datetime import date
 from typing import Optional
-from models import Job, Company, Skill, JobSkill, User, session
+from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
 from auth import hash_password, verify_password, create_access_token, get_current_user
 from resume_parser import parse_resume
@@ -113,6 +113,73 @@ def update_my_skills(body: SkillsUpdateRequest, current_user: User = Depends(get
     current_user.skills = body.skills
     session.commit()
     return {"id": current_user.id, "email": current_user.email, "skills": current_user.skills}
+
+
+@app.get("/auth/me/history")
+def recommendation_history(
+    target_role: Optional[str] = Query(None, description="Filter to a specific target role"),
+    limit: int = Query(20, le=100),
+    current_user: User = Depends(get_current_user),
+):
+    """Past /recommend and /recommend/evidence calls for the logged-in user —
+    a single point-in-time snapshot isn't progress, a history of them is."""
+    query = session.query(RecommendationHistory).filter_by(user_id=current_user.id)
+    if target_role:
+        query = query.filter(RecommendationHistory.resolved_role == resolve_role(target_role)["resolved"])
+
+    entries = query.order_by(RecommendationHistory.created_at.desc()).limit(limit).all()
+    return {
+        "results": [
+            {
+                "id": e.id,
+                "target_role": e.target_role,
+                "resolved_role": e.resolved_role,
+                "skills_at_time": e.skills_at_time,
+                "recommendations": e.recommendations,
+                "created_at": e.created_at.isoformat(),
+            }
+            for e in entries
+        ],
+    }
+
+
+@app.get("/auth/me/history/progress")
+def recommendation_progress(
+    target_role: str = Query(..., description="Target role to compare oldest vs. newest recorded run for"),
+    current_user: User = Depends(get_current_user),
+):
+    """Compares the earliest and most recent recorded /recommend run for a
+    role, so a user can see which gap skills they've actually closed."""
+    resolved = resolve_role(target_role)["resolved"]
+    entries = (
+        session.query(RecommendationHistory)
+        .filter_by(user_id=current_user.id, resolved_role=resolved)
+        .order_by(RecommendationHistory.created_at.asc())
+        .all()
+    )
+
+    if len(entries) < 2:
+        return {
+            "target_role": target_role,
+            "resolved_role": resolved,
+            "runs_recorded": len(entries),
+            "message": "Need at least 2 recorded runs for this role to show progress. Call /recommend for this role again later to build history.",
+        }
+
+    first, last = entries[0], entries[-1]
+    first_gaps = {r["skill"] for r in first.recommendations}
+    last_gaps = {r["skill"] for r in last.recommendations}
+
+    return {
+        "target_role": target_role,
+        "resolved_role": resolved,
+        "runs_recorded": len(entries),
+        "first_run_at": first.created_at.isoformat(),
+        "latest_run_at": last.created_at.isoformat(),
+        "skills_closed": sorted(first_gaps - last_gaps),  # were a gap, aren't anymore
+        "skills_still_open": sorted(first_gaps & last_gaps),
+        "new_gaps": sorted(last_gaps - first_gaps),  # weren't flagged before, are now (market shifted, or skills changed)
+    }
 
 
 @app.post("/auth/me/resume")
@@ -362,12 +429,24 @@ def skill_trend(skill_name: str):
     return result
 
 
+def _record_recommendation_history(user, target_role, resolved_role, skills, results):
+    session.add(RecommendationHistory(
+        user_id=user.id,
+        target_role=target_role,
+        resolved_role=resolved_role,
+        skills_at_time=skills,
+        recommendations=results,
+    ))
+    session.commit()
+
+
 @app.post("/recommend")
 @limiter.limit("10/minute")
 def recommend(request: Request, body: RecommendRequest, current_user: User = Depends(get_current_user)):
     skills = body.skills if body.skills is not None else (current_user.skills or [])
     role_resolution = resolve_role(body.target_role)
     results = recommend_skills_data(skills, role_resolution["resolved"])
+    _record_recommendation_history(current_user, body.target_role, role_resolution["resolved"], skills, results)
     return {
         "target_role": body.target_role,
         "role_resolution": role_resolution,
@@ -384,6 +463,7 @@ def recommend_with_evidence(request: Request, body: RecommendRequest, current_us
     skills = body.skills if body.skills is not None else (current_user.skills or [])
     role_resolution = resolve_role(body.target_role)
     results = recommend_skills_with_evidence(skills, role_resolution["resolved"])
+    _record_recommendation_history(current_user, body.target_role, role_resolution["resolved"], skills, results)
     return {
         "target_role": body.target_role,
         "role_resolution": role_resolution,

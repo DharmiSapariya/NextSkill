@@ -52,6 +52,21 @@ class User(Base):
     skills = Column(JSON, nullable=False, default=list)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
+class RecommendationHistory(Base):
+    """One row per /recommend or /recommend/evidence call — lets a user see
+    how their skill gap for a role has changed over time, not just a single
+    point-in-time snapshot."""
+    __tablename__ = "recommendation_history"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    target_role = Column(String, nullable=False)
+    resolved_role = Column(String, nullable=False)
+    skills_at_time = Column(JSON, nullable=False)
+    recommendations = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    user = relationship("User")
+
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 session = Session()
