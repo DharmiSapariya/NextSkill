@@ -354,10 +354,23 @@ def role_nearest(role: str, limit: int = Query(5, ge=1, le=20)):
             status_code=404,
             detail=f"'{role}' isn't a tracked role. Tracked roles: {', '.join(TRACKED_ROLES)}",
         )
+
+    # /roles/transition-graph, /trends/{skill}, and /skills/{skill}/related
+    # are all cached — this was the one similarly expensive aggregate
+    # endpoint that wasn't, computing nearest_roles() (2 queries across all
+    # tracked roles, per the role_graph.py fix earlier this session) fresh
+    # on every single request.
+    cache_key = f"role-nearest:{resolved_role}:{limit}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return {"role": role, "role_resolution": role_resolution, "nearest_roles": cached}
+
+    nearest = nearest_roles(resolved_role, limit=limit)
+    cache_set(cache_key, nearest, ttl_seconds=86400)  # data only changes when the pipeline re-ingests
     return {
         "role": role,
         "role_resolution": role_resolution,
-        "nearest_roles": nearest_roles(resolved_role, limit=limit),
+        "nearest_roles": nearest,
     }
 
 

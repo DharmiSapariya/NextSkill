@@ -624,6 +624,17 @@ def test_nearest_roles_for_known_role():
         assert "skills_you_would_need" in entry
 
 
+def test_nearest_roles_is_cached():
+    from cache import cache_get
+
+    response = client.get("/roles/data scientist/nearest?limit=3")
+    assert response.status_code == 200
+    cached = cache_get("role-nearest:data scientist:3")
+    if cached is None:
+        pytest.skip("REDIS_URL not set — caching fails open, nothing to assert here")
+    assert cached == response.json()["nearest_roles"]
+
+
 def test_nearest_roles_for_untracked_role():
     response = client.get("/roles/underwater basket weaver/nearest")
     assert response.status_code == 404
