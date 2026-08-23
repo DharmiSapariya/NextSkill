@@ -228,6 +228,18 @@ def test_resume_upload_rejects_unsupported_format(auth_headers):
     assert response.status_code == 400
 
 
+def test_resume_upload_rejects_oversized_file(auth_headers):
+    from api import MAX_RESUME_SIZE_BYTES
+
+    oversized = b"a" * (MAX_RESUME_SIZE_BYTES + 1)
+    response = client.post(
+        "/auth/me/resume",
+        files={"file": ("resume.docx", oversized, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        headers=auth_headers,
+    )
+    assert response.status_code == 413
+
+
 def test_match_score_requires_auth():
     response = client.post("/match-score", json={"target_role": "data scientist"})
     assert response.status_code == 401

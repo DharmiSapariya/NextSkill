@@ -182,11 +182,19 @@ def recommendation_progress(
     }
 
 
+MAX_RESUME_SIZE_BYTES = 5 * 1024 * 1024  # 5MB — generous for a resume, small enough to bound memory/CPU per upload
+
+
 @app.post("/auth/me/resume")
 async def upload_resume(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
     """Parses an uploaded resume (PDF or DOCX) and merges the skills it finds
     into the user's saved skill profile."""
-    file_bytes = await file.read()
+    file_bytes = await file.read(MAX_RESUME_SIZE_BYTES + 1)
+    if len(file_bytes) > MAX_RESUME_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Resume file too large — max {MAX_RESUME_SIZE_BYTES // (1024 * 1024)}MB.",
+        )
     try:
         found_skills = parse_resume(file.filename, file_bytes)
     except ValueError as e:
