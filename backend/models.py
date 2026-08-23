@@ -14,6 +14,7 @@ Base = declarative_base()
 
 class Company(Base):
     __tablename__ = "companies"
+    __table_args__ = (UniqueConstraint("name", name="uq_companies_name"),)
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
 

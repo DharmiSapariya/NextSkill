@@ -1,10 +1,23 @@
 """Schema-level invariant tests — constraints that exist to catch a future bug
 before it corrupts data, not to exercise application behavior.
 """
+import uuid
+
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from models import Job, JobSkill, Skill, session
+from models import Company, Job, JobSkill, Skill, session
+
+
+def test_company_name_must_be_unique():
+    name = f"Constraint Test Co {uuid.uuid4().hex[:12]}"
+    session.add(Company(name=name))
+    session.commit()
+
+    session.add(Company(name=name))
+    with pytest.raises(IntegrityError):
+        session.commit()
+    session.rollback()
 
 
 def test_job_skills_rejects_duplicate_job_skill_pair():
