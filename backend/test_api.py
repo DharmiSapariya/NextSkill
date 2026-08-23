@@ -659,6 +659,61 @@ def test_progress_shows_closed_and_open_gaps(auth_headers):
     assert "docker" not in [s.lower() for s in data["skills_still_open"]]  # shouldn't show up in both
 
 
+def test_digest_requires_auth():
+    response = client.get("/auth/me/digest")
+    assert response.status_code == 401
+
+
+def test_digest_reports_no_change_for_new_user():
+    # A brand-new user has zero history for a role nobody's touched yet —
+    # nothing to report, not an error, an honest "nothing changed."
+    from api import limiter
+
+    limiter.reset()  # shared /auth/signup counter — same caveat as the rate-limit tests
+    email = f"digest-empty-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    response = client.get("/auth/me/digest", headers=headers)
+    assert response.status_code == 200
+    assert response.json()["changes"] == []
+    assert "message" in response.json()
+
+
+def test_digest_reports_a_real_top_skill_change():
+    from datetime import datetime, timezone
+    from api import limiter
+    from models import RecommendationHistory, User as UserModel, session as db_session
+
+    limiter.reset()  # shared /auth/signup counter — same caveat as the rate-limit tests
+    email = f"digest-change-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    user = db_session.query(UserModel).filter_by(email=email).first()
+
+    # Explicit, strictly increasing timestamps rather than relying on
+    # back-to-back datetime.now() calls to not tie at the microsecond level.
+    db_session.add(RecommendationHistory(
+        user_id=user.id, target_role="data scientist", resolved_role="data scientist",
+        skills_at_time=[], recommendations=[{"skill": "Python", "mentions": 10}],
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    ))
+    db_session.add(RecommendationHistory(
+        user_id=user.id, target_role="data scientist", resolved_role="data scientist",
+        skills_at_time=[], recommendations=[{"skill": "SQL", "mentions": 8}],
+        created_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+    ))
+    db_session.commit()
+
+    response = client.get("/auth/me/digest", headers=headers)
+    assert response.status_code == 200
+    changes = response.json()["changes"]
+    assert len(changes) == 1
+    assert changes[0]["resolved_role"] == "data scientist"
+    assert changes[0]["previous_top_gap_skill"] == "Python"
+    assert changes[0]["current_top_gap_skill"] == "SQL"
+
+
 def _make_history_entry(headers, target_role):
     client.post("/recommend", json={"skills": ["Python"], "target_role": target_role}, headers=headers)
     entries = client.get(f"/auth/me/history?target_role={target_role}", headers=headers).json()["results"]

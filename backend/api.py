@@ -27,6 +27,7 @@ from salary_predict import predict_salary
 from role_graph import build_transition_graph, nearest_roles, TRACKED_ROLES
 from skill_graph import build_skill_co_occurrence_graph, TOP_N_SKILLS
 from role_matcher import resolve_role
+from digest import compute_digest_for_user
 from cache import cache_get, cache_set
 from seniority import infer_seniority, as_postgres_regex, SENIORITY_PATTERNS
 
@@ -198,6 +199,23 @@ def recommendation_progress(
         "skills_still_open": sorted(first_gaps & last_gaps),
         "new_gaps": sorted(last_gaps - first_gaps),  # weren't flagged before, are now (market shifted, or skills changed)
     }
+
+
+@app.get("/auth/me/digest")
+def my_digest(current_user: User = Depends(get_current_user)):
+    """Phase 4: "weekly digest notifications — 'your target role's top gap
+    skill just changed.'" This is the computation only, not email delivery
+    (needs real SMTP credentials this environment can't provision) — but
+    it's the exact question a digest email would answer, so it's useful on
+    its own today and is what a future email step would send verbatim.
+
+    Unlike /auth/me/history/progress (first run vs. latest, all-time),
+    this compares the latest run against the one right before it — "what's
+    new since you last looked," not the whole history's worth of change."""
+    changes = compute_digest_for_user(current_user.id)
+    if not changes:
+        return {"changes": [], "message": "No change in your top gap skill since your last recorded run, for any tracked role."}
+    return {"changes": changes}
 
 
 @app.post("/auth/me/history/{history_id}/share")
