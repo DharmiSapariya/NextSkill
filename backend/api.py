@@ -115,7 +115,13 @@ def login(request: Request, body: LoginRequest):
 
 @app.get("/auth/me")
 def get_me(current_user: User = Depends(get_current_user)):
-    return {"id": current_user.id, "email": current_user.email, "skills": current_user.skills or []}
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "skills": current_user.skills or [],
+        "tier": current_user.tier,
+        "is_admin": current_user.is_admin,
+    }
 
 
 @app.put("/auth/me/skills")

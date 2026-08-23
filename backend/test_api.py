@@ -112,6 +112,8 @@ def test_me_and_skills_update(auth_headers):
     me = client.get("/auth/me", headers=auth_headers)
     assert me.status_code == 200
     assert me.json()["skills"] == []
+    assert me.json()["tier"] == "free"
+    assert me.json()["is_admin"] is False
 
     updated = client.put("/auth/me/skills", json={"skills": ["Python", "SQL"]}, headers=auth_headers)
     assert updated.status_code == 200
@@ -437,6 +439,28 @@ def test_history_limit_capped_for_free_tier_but_not_pro():
 
     pro_response = client.get("/auth/me/history?limit=100", headers=headers)
     assert len(pro_response.json()["results"]) == 25  # not capped — all 25 come back
+
+
+def test_me_reflects_tier_and_admin_status_after_provisioning():
+    # Before this, a user upgraded to pro (or granted admin) had no way to
+    # see that via the API at all — only indirectly, e.g. by noticing
+    # /recommend/evidence started returning more evidence than before.
+    from models import User as UserModel, session as db_session
+
+    email = f"me-tier-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    assert client.get("/auth/me", headers=headers).json()["tier"] == "free"
+
+    user = db_session.query(UserModel).filter_by(email=email).first()
+    user.tier = "pro"
+    user.is_admin = True
+    db_session.commit()
+
+    me = client.get("/auth/me", headers=headers).json()
+    assert me["tier"] == "pro"
+    assert me["is_admin"] is True
 
 
 def test_related_skills_returns_sensible_results():
