@@ -57,5 +57,9 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 if __name__ == "__main__":
+    # Quick local/throwaway-DB setup only (e.g. seed_test_data.py, fresh dev DB).
+    # A real deployment — anywhere the schema needs to evolve without dropping
+    # data — goes through Alembic instead: `cd backend && alembic upgrade head`.
+    # See migrations/.
     Base.metadata.create_all(engine)
     print("Tables created successfully")

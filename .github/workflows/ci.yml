@@ -39,6 +39,10 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
+      - name: Apply migrations
+        working-directory: backend
+        run: alembic upgrade head
+
       - name: Seed fixture data
         working-directory: backend
         run: python seed_test_data.py
