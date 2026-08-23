@@ -205,6 +205,41 @@ def test_top_companies():
     assert postings == sorted(postings, reverse=True)
 
 
+def _make_admin_headers():
+    # No self-service way to become an admin by design — tests provision one
+    # directly, the same way a real deployment would (a manual DB update).
+    from models import User as UserModel, session
+
+    email = f"admin-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    user = session.query(UserModel).filter_by(email=email).first()
+    user.is_admin = True
+    session.commit()
+    return {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+
+def test_admin_stats_requires_auth():
+    response = client.get("/admin/stats")
+    assert response.status_code == 401
+
+
+def test_admin_stats_rejects_non_admin_user(auth_headers):
+    response = client.get("/admin/stats", headers=auth_headers)
+    assert response.status_code == 403
+
+
+def test_admin_stats_returns_aggregate_numbers():
+    admin_headers = _make_admin_headers()
+    response = client.get("/admin/stats", headers=admin_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_users"] > 0
+    assert data["signups_last_30_days"] > 0  # the admin user we just created counts
+    assert data["total_jobs"] > 0
+    assert data["total_skills"] > 0
+    assert isinstance(data["top_target_roles"], list)
+
+
 def test_trend_for_known_skill():
     response = client.get("/trends/Python")
     assert response.status_code == 200

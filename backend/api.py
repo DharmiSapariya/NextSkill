@@ -16,11 +16,11 @@ sentry_sdk.init(
 )
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
-from auth import hash_password, verify_password, create_access_token, get_current_user
+from auth import hash_password, verify_password, create_access_token, get_current_user, get_current_admin_user
 from resume_parser import parse_resume
 from match_score import compute_match_score
 from salary_predict import predict_salary
@@ -402,6 +402,39 @@ def top_companies(limit: int = Query(10, ge=1, le=50)):
         .all()
     )
     return {"results": [{"company": name, "postings": count} for name, count in results]}
+
+
+ADMIN_SIGNUP_WINDOW_DAYS = 30
+
+
+@app.get("/admin/stats")
+def admin_stats(current_user: User = Depends(get_current_admin_user)):
+    """Phase 5: "admin/analytics dashboard — aggregate insights that double
+    as marketing material." Aggregate platform stats only, no per-user
+    data — a real admin dashboard would need a lot more (individual user
+    lookup, moderation), this is the aggregate-numbers slice of it."""
+    signup_cutoff = datetime.now(timezone.utc) - timedelta(days=ADMIN_SIGNUP_WINDOW_DAYS)
+
+    top_target_roles = (
+        session.query(RecommendationHistory.resolved_role, func.count(RecommendationHistory.id).label("times_requested"))
+        .group_by(RecommendationHistory.resolved_role)
+        .order_by(func.count(RecommendationHistory.id).desc())
+        .limit(10)
+        .all()
+    )
+
+    return {
+        "total_users": session.query(User).count(),
+        "signups_last_30_days": session.query(User).filter(User.created_at >= signup_cutoff).count(),
+        "total_jobs": session.query(Job).count(),
+        "total_companies": session.query(Company).count(),
+        "total_skills": session.query(Skill).count(),
+        "total_skill_mentions": session.query(JobSkill).count(),
+        "total_shared_reports": session.query(SharedReport).count(),
+        "top_target_roles": [
+            {"role": role, "times_requested": count} for role, count in top_target_roles
+        ],
+    }
 
 
 # Fixed whitelist of roles used to define the comparison universe for trend

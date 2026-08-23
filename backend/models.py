@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Date, DateTime, ForeignKey, Numeric, JSON, UniqueConstraint
+from sqlalchemy import create_engine, Column, Integer, String, Text, Date, DateTime, ForeignKey, Numeric, JSON, UniqueConstraint, Boolean
 from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 from datetime import datetime, timezone
 import os
@@ -55,6 +55,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     skills = Column(JSON, nullable=False, default=list)
+    is_admin = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class RecommendationHistory(Base):

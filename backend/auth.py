@@ -46,3 +46,13 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer_
     if not user:
         raise unauthorized
     return user
+
+
+def get_current_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """Same valid-token requirement as get_current_user, plus is_admin.
+    There's no self-service way to become an admin — it's a manually
+    provisioned flag (e.g. via a direct DB update), not something a user's
+    own signup/login flow can set."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
