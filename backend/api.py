@@ -124,6 +124,10 @@ def update_my_skills(body: SkillsUpdateRequest, current_user: User = Depends(get
     return {"id": current_user.id, "email": current_user.email, "skills": current_user.skills}
 
 
+FREE_TIER_HISTORY_LIMIT_CEILING = 20  # matches this endpoint's original default exactly — free never regresses
+PRO_TIER_HISTORY_LIMIT_CEILING = 100  # matches the endpoint's original le=100 validation ceiling
+
+
 @app.get("/auth/me/history")
 def recommendation_history(
     target_role: Optional[str] = Query(None, description="Filter to a specific target role"),
@@ -131,12 +135,17 @@ def recommendation_history(
     current_user: User = Depends(get_current_user),
 ):
     """Past /recommend and /recommend/evidence calls for the logged-in user —
-    a single point-in-time snapshot isn't progress, a history of them is."""
+    a single point-in-time snapshot isn't progress, a history of them is.
+    Tiered access (Phase 5): every account can see its history, a pro
+    account can pull more of it in one call."""
+    tier_ceiling = PRO_TIER_HISTORY_LIMIT_CEILING if current_user.tier == "pro" else FREE_TIER_HISTORY_LIMIT_CEILING
+    effective_limit = min(limit, tier_ceiling)
+
     query = session.query(RecommendationHistory).filter_by(user_id=current_user.id)
     if target_role:
         query = query.filter(RecommendationHistory.resolved_role == resolve_role(target_role)["resolved"])
 
-    entries = query.order_by(RecommendationHistory.created_at.desc()).limit(limit).all()
+    entries = query.order_by(RecommendationHistory.created_at.desc()).limit(effective_limit).all()
     return {
         "results": [
             {
@@ -657,20 +666,27 @@ def recommend(request: Request, body: RecommendRequest, current_user: User = Dep
     }
 
 
+FREE_TIER_EVIDENCE_LIMIT = 3  # unchanged from this endpoint's original default — free never regresses
+PRO_TIER_EVIDENCE_LIMIT = 10
+
+
 @app.post("/recommend/evidence")
 @limiter.limit("10/minute")
 def recommend_with_evidence(request: Request, body: RecommendRequest, current_user: User = Depends(get_current_user)):
     """Like /recommend, but every recommendation includes real postings as evidence —
-    radical transparency instead of a black-box score."""
+    radical transparency instead of a black-box score. Tiered access (Phase 5): every
+    account gets real evidence, a pro account gets more of it per recommendation."""
     skills = body.skills if body.skills is not None else (current_user.skills or [])
     role_resolution = resolve_role(body.target_role)
-    results = recommend_skills_with_evidence(skills, role_resolution["resolved"])
+    evidence_limit = PRO_TIER_EVIDENCE_LIMIT if current_user.tier == "pro" else FREE_TIER_EVIDENCE_LIMIT
+    results = recommend_skills_with_evidence(skills, role_resolution["resolved"], evidence_limit=evidence_limit)
     _record_recommendation_history(current_user, body.target_role, role_resolution["resolved"], skills, results)
     return {
         "target_role": body.target_role,
         "role_resolution": role_resolution,
         "your_skills": skills,
         "recommendations": results,
+        "tier": current_user.tier,
     }
 
 

@@ -379,6 +379,66 @@ def test_recommend_evidence_includes_real_postings(auth_headers):
             assert "company" in item
 
 
+def test_recommend_evidence_respects_tier_limit():
+    from models import User as UserModel, session as db_session
+
+    email = f"evidence-tier-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    # 10 real "Python" + "data scientist" postings exist in the seeded data —
+    # enough to actually prove a 3 vs 10 cap difference, not just "both
+    # happen to be under some coincidentally small number."
+    free_response = client.post("/recommend/evidence", json={"skills": [], "target_role": "data scientist"}, headers=headers)
+    assert free_response.status_code == 200
+    free_data = free_response.json()
+    assert free_data["tier"] == "free"
+    python_rec = next(r for r in free_data["recommendations"] if r["skill"] == "Python")
+    assert len(python_rec["evidence"]) <= 3
+
+    # No self-service upgrade endpoint by design — provisioned directly, same
+    # pattern as is_admin.
+    user = db_session.query(UserModel).filter_by(email=email).first()
+    user.tier = "pro"
+    db_session.commit()
+
+    pro_response = client.post("/recommend/evidence", json={"skills": [], "target_role": "data scientist"}, headers=headers)
+    pro_data = pro_response.json()
+    assert pro_data["tier"] == "pro"
+    python_rec_pro = next(r for r in pro_data["recommendations"] if r["skill"] == "Python")
+    assert len(python_rec_pro["evidence"]) > 3  # proves the cap actually differs, not coincidence
+
+
+def test_history_limit_capped_for_free_tier_but_not_pro():
+    from models import RecommendationHistory, User as UserModel, session as db_session
+
+    email = f"history-tier-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    user = db_session.query(UserModel).filter_by(email=email).first()
+
+    # Insert 25 history rows directly — proving the limit-capping logic
+    # itself doesn't need 25 real rate-limited /recommend calls to test.
+    for i in range(25):
+        db_session.add(RecommendationHistory(
+            user_id=user.id,
+            target_role="backend developer",
+            resolved_role="backend developer",
+            skills_at_time=[],
+            recommendations=[],
+        ))
+    db_session.commit()
+
+    free_response = client.get("/auth/me/history?limit=100", headers=headers)
+    assert len(free_response.json()["results"]) == 20  # capped, even though 25 exist and 100 was requested
+
+    user.tier = "pro"
+    db_session.commit()
+
+    pro_response = client.get("/auth/me/history?limit=100", headers=headers)
+    assert len(pro_response.json()["results"]) == 25  # not capped — all 25 come back
+
+
 def test_related_skills_returns_sensible_results():
     response = client.get("/skills/React/related?limit=5")
     assert response.status_code == 200

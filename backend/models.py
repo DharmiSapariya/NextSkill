@@ -56,6 +56,11 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     skills = Column(JSON, nullable=False, default=list)
     is_admin = Column(Boolean, nullable=False, default=False)
+    # No payment processing exists (or is planned to be built) as part of
+    # this — that's a real separate integration. This is the access-control
+    # plumbing a monetization story would sit behind, same as is_admin: no
+    # self-service upgrade endpoint, "pro" is set the same way "admin" is.
+    tier = Column(String, nullable=False, default="free")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class RecommendationHistory(Base):

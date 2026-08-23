@@ -92,9 +92,12 @@ def get_evidence_for_skill(skill_name, target_role_keyword, limit=3):
     ]
 
 
-def recommend_skills_with_evidence(user_skills, target_role_keyword, top_n=5):
-    """Same as recommend_skills_data, but attaches real posting evidence to each recommendation."""
+def recommend_skills_with_evidence(user_skills, target_role_keyword, top_n=5, evidence_limit=3):
+    """Same as recommend_skills_data, but attaches real posting evidence to each recommendation.
+    evidence_limit is the tiered-access lever in api.py: free accounts get the original
+    default (3), paid accounts get more — deeper evidence per recommendation, not a
+    different feature, so a free account never sees zero evidence."""
     gaps = recommend_skills_data(user_skills, target_role_keyword, top_n=top_n)
     for gap in gaps:
-        gap["evidence"] = get_evidence_for_skill(gap["skill"], target_role_keyword)
+        gap["evidence"] = get_evidence_for_skill(gap["skill"], target_role_keyword, limit=evidence_limit)
     return gaps
