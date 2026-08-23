@@ -18,3 +18,4 @@ scikit-learn>=1.5
 joblib>=1.4
 numpy>=1.26
 pytest>=8.2
+sentry-sdk>=2.0
