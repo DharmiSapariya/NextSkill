@@ -13,7 +13,23 @@ system degrades to today's substring-only behavior, it doesn't break.
 """
 from role_graph import TRACKED_ROLES
 
-SIMILARITY_THRESHOLD = 0.55
+# Calibrated against real CI runs (see test_role_matcher.py), not guessed:
+# short acronyms don't embed close enough to their expansion for a generic
+# sentence model to catch reliably ("SRE" scored 0.248 against "site
+# reliability engineer" — nowhere near any reasonable threshold), and some
+# common tech-industry phrasings are worth mapping explicitly rather than
+# hoping the embedding lands right ("React Developer" scored 0.548, just
+# under threshold, for "frontend developer"). Checked before the model at
+# all — zero embedding cost for these.
+ROLE_ALIASES = {
+    "sre": "site reliability engineer",
+    "react developer": "frontend developer",
+}
+
+# 0.6, not 0.55: real CI data showed "Growth Marketing Manager" incorrectly
+# matching "product manager" at 0.576 — a threshold has to clear that with
+# margin, or it starts resolving genuinely unrelated roles.
+SIMILARITY_THRESHOLD = 0.6
 
 _model = None
 _model_load_failed = False
@@ -43,6 +59,8 @@ def resolve_role(query: str) -> dict:
     query_lower = query.strip().lower()
     if query_lower in TRACKED_ROLES:
         return {"resolved": query_lower, "matched_semantically": False, "similarity": None}
+    if query_lower in ROLE_ALIASES:
+        return {"resolved": ROLE_ALIASES[query_lower], "matched_semantically": True, "similarity": None}
 
     _load_model()
     if _model is None:
