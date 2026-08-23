@@ -138,6 +138,39 @@ def test_list_jobs_filters_by_role():
         assert "data" in job["title"].lower() or "scientist" in job["title"].lower()
 
 
+def test_list_jobs_includes_seniority_label():
+    response = client.get("/jobs?limit=5")
+    assert response.status_code == 200
+    for job in response.json()["results"]:
+        assert job["seniority"] in ("junior", "mid", "senior", "unspecified")
+
+
+def test_list_jobs_filters_by_seniority():
+    response = client.get("/jobs?seniority=senior&limit=100")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] > 0  # seed data includes "Senior Data Scientist"
+    for job in data["results"]:
+        assert job["seniority"] == "senior"
+
+
+def test_list_jobs_seniority_buckets_partition_the_full_set():
+    # The query-level filter and the per-job label are built from the same
+    # SENIORITY_PATTERNS — confirm they actually agree with each other by
+    # checking the four buckets add up to the unfiltered total exactly.
+    total = client.get("/jobs?limit=1").json()["total"]
+    bucket_sum = sum(
+        client.get(f"/jobs?seniority={level}&limit=1").json()["total"]
+        for level in ("junior", "mid", "senior", "unspecified")
+    )
+    assert bucket_sum == total
+
+
+def test_list_jobs_rejects_invalid_seniority_value():
+    response = client.get("/jobs?seniority=not-a-real-level")
+    assert response.status_code == 422
+
+
 def test_get_job_not_found():
     response = client.get("/jobs/999999999")
     assert response.status_code == 404

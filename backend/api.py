@@ -16,7 +16,7 @@ sentry_sdk.init(
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_
 from datetime import timedelta
-from typing import Optional
+from typing import Literal, Optional
 from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
 from auth import hash_password, verify_password, create_access_token, get_current_user
@@ -26,6 +26,7 @@ from salary_predict import predict_salary
 from role_graph import build_transition_graph, nearest_roles, TRACKED_ROLES
 from role_matcher import resolve_role
 from cache import cache_get, cache_set
+from seniority import infer_seniority, as_postgres_regex, SENIORITY_PATTERNS
 
 app = FastAPI(
     title="NextSkill API",
@@ -275,6 +276,9 @@ def role_nearest(role: str, limit: int = Query(5, ge=1, le=20)):
 def list_jobs(
     role: Optional[str] = Query(None, description="Filter by keyword in job title"),
     location: Optional[str] = Query(None, description="Filter by keyword in location"),
+    seniority: Optional[Literal["junior", "mid", "senior", "unspecified"]] = Query(
+        None, description="Filter by seniority inferred from the title"
+    ),
     limit: int = Query(20, ge=1, le=100, description="Max results per page (max 100)"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ):
@@ -283,6 +287,15 @@ def list_jobs(
         query = query.filter(Job.title.ilike(f"%{role}%"))
     if location:
         query = query.filter(Job.location.ilike(f"%{location}%"))
+    if seniority:
+        # Same SENIORITY_PATTERNS used for the per-job label below, applied
+        # as a Postgres regex filter — one definition, so the filter and the
+        # label can't silently disagree with each other.
+        if seniority == "unspecified":
+            combined = "|".join(SENIORITY_PATTERNS.values())
+            query = query.filter(~Job.title.op("~*")(as_postgres_regex(f"({combined})")))
+        else:
+            query = query.filter(Job.title.op("~*")(as_postgres_regex(SENIORITY_PATTERNS[seniority])))
 
     total = query.count()
     jobs = query.offset(offset).limit(limit).all()
@@ -299,6 +312,7 @@ def list_jobs(
                 "location": j.location,
                 "category": j.category,
                 "source": j.source,
+                "seniority": infer_seniority(j.title),
             }
             for j in jobs
         ],
