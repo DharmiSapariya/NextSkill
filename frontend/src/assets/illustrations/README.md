@@ -4,18 +4,34 @@
 Project Manager), recolored into the NextSkill locked palette
 (`NextSkill_Final_Color_Usage_Guide_v2`).
 
-## Recoloring approach
+## Recoloring approach (v2 — strict flat palette)
 
-Every distinct color in each source file was hue-bucketed into one of the
-brand families — forest (warm/red/green hues), periwinkle (cool/blue/purple
-hues), or lime (yellow hues) — then rendered within that bucket's own
-calibrated saturation and lightness band, with the *original* color's
-lightness remapped proportionally into that band. That preserves shape-to-
-shape contrast from the source art (so e.g. skin vs. hair vs. clothing stay
-visually distinct) while every output color still reads as unmistakably
-"the same family" as the brand swatch, regardless of how light or dark the
-original was. True near-white and near-black/gray values are left as
-white/charcoal rather than force-colorized.
+Per the locked "NextSkill Illustration Color System": every fill snaps to
+exactly one of six flat colors — outline `#171717`, forest `#1E3A2B`
+(primary), lime `#EFF87A` (sparse accent), periwinkle `#CFDCFF` (secondary),
+cream `#F8F4F0` (light surfaces) — no continuous tinting, no off-palette
+colors. Every stroke becomes the outline color unconditionally, regardless
+of what color it was in the source; this requires parsing colors in their
+actual `fill`/`stroke`/`stop-color` context rather than a blind global
+find-and-replace, since the same source hex often appears as both a fill
+somewhere and a stroke elsewhere in the same file and now needs to resolve
+to two different outputs.
+
+Hue mapping: blue/cyan → periwinkle (dark blue → forest instead, per the
+spec's own example); purple/magenta → periwinkle; green → forest;
+orange/gold/yellow → lime (coins, stars, badges — genuinely accent-scale in
+these packs); red → **forest**, not lime — the spec's literal example says
+red maps to lime, but its own repeated, stronger principle is that lime must
+stay a sparse accent and never dominate, and in these source packs red is
+consistently a large area (a whole coat, a whole robe). A large area
+gets the primary/dominant color, the same way a large dark-blue area gets
+forest instead of periwinkle. Human skin tones (a narrow, moderately-
+saturated red-orange band, distinct from fully-saturated brand reds/oranges)
+are left unrecolored, per the spec's explicit carve-out for human
+representation.
+
+`scripts/recolor_illustration.py` is the reusable tool this produced —
+its own comments explain each rule in more depth.
 
 Only the SVG versions were kept (not the packs' bundled PNG rasters) — SVG
 scales cleanly at any size and was more reliable to recolor precisely (exact

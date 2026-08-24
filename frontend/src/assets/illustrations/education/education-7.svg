@@ -3,31 +3,31 @@
 <svg version="1.1" id="Слой_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 viewBox="0 0 5000 3500" style="enable-background:new 0 0 5000 3500;" xml:space="preserve">
 <style type="text/css">
-	.st0{fill:#CFD7EF;}
-	.st1{fill:none;stroke:#E0E695;stroke-width:6;stroke-miterlimit:10;}
-	.st2{fill:#E0E695;stroke:#FFFFFF;stroke-width:6;stroke-miterlimit:10;}
-	.st3{fill:none;stroke:#A8B7E2;stroke-width:6;stroke-linecap:round;stroke-miterlimit:10;}
-	.st4{fill:#BDC9E9;}
-	.st5{fill:#A8B7E2;}
-	.st6{fill:#FFFFFF;stroke:#E0E695;stroke-width:6;stroke-miterlimit:10;}
-	.st7{fill:#356D4F;}
-	.st8{fill:#E0E695;}
-	.st9{fill:none;stroke:#E0E695;stroke-width:6;stroke-linecap:round;stroke-miterlimit:10;}
-	.st10{fill:#FFFFFF;stroke:#A8B7E2;stroke-width:6;stroke-linecap:round;stroke-miterlimit:10;}
-	.st11{fill:#FFFFFF;stroke:#ADBCE4;stroke-width:6;stroke-miterlimit:10;}
-	.st12{fill:none;stroke:#ADBCE4;stroke-width:6;stroke-miterlimit:10;}
-	.st13{fill:none;stroke:#A8B7E2;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
-	.st14{fill:#FFFFFF;}
-	.st15{fill:none;stroke:#356D4F;stroke-width:5;stroke-miterlimit:10;}
-	.st16{fill:#FFFFFF;stroke:#356D4F;stroke-width:6;stroke-miterlimit:10;}
-	.st17{fill:none;stroke:#356D4F;stroke-width:6;stroke-miterlimit:10;}
-	.st18{fill:#ADBCE4;}
-	.st19{fill:none;stroke:#A8B7E2;stroke-width:6;stroke-miterlimit:10;}
-	.st20{fill:none;stroke:#FFFFFF;stroke-width:6;stroke-miterlimit:10;}
-	.st21{fill:#367152;}
-	.st22{fill:none;stroke:#A8B7E2;stroke-width:5;stroke-linecap:round;stroke-miterlimit:10;}
-	.st23{fill:#356D4F;stroke:#356D4F;stroke-width:6;stroke-miterlimit:10;}
-	.st24{fill:none;stroke:#FFFFFF;stroke-width:6;stroke-linecap:round;stroke-miterlimit:10;}
+	.st0{fill:#CFDCFF;}
+	.st1{fill:none;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st2{fill:#EFF87A;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st3{fill:none;stroke:#171717;stroke-width:6;stroke-linecap:round;stroke-miterlimit:10;}
+	.st4{fill:#CFDCFF;}
+	.st5{fill:#CFDCFF;}
+	.st6{fill:#F8F4F0;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st7{fill:#1E3A2B;}
+	.st8{fill:#EFF87A;}
+	.st9{fill:none;stroke:#171717;stroke-width:6;stroke-linecap:round;stroke-miterlimit:10;}
+	.st10{fill:#F8F4F0;stroke:#171717;stroke-width:6;stroke-linecap:round;stroke-miterlimit:10;}
+	.st11{fill:#F8F4F0;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st12{fill:none;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st13{fill:none;stroke:#171717;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:10;}
+	.st14{fill:#F8F4F0;}
+	.st15{fill:none;stroke:#171717;stroke-width:5;stroke-miterlimit:10;}
+	.st16{fill:#F8F4F0;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st17{fill:none;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st18{fill:#CFDCFF;}
+	.st19{fill:none;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st20{fill:none;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st21{fill:#1E3A2B;}
+	.st22{fill:none;stroke:#171717;stroke-width:5;stroke-linecap:round;stroke-miterlimit:10;}
+	.st23{fill:#1E3A2B;stroke:#171717;stroke-width:6;stroke-miterlimit:10;}
+	.st24{fill:none;stroke:#171717;stroke-width:6;stroke-linecap:round;stroke-miterlimit:10;}
 </style>
 <g id="LAMP">
 	<polygon class="st0" points="3637.1,3171 1092.1,3171 2132.1,701.6 2597.1,701.6 	"/>

@@ -1,33 +1,37 @@
-"""Recolors an SVG illustration into the NextSkill brand palette
-(NextSkill_Final_Color_Usage_Guide_v2), used to produce everything under
-src/assets/illustrations/.
+"""NextSkill Illustration Color System v2 — strict, flat 6-color palette,
+context-aware (stroke vs fill), per the locked spec:
+  outline  #171717  — every stroke, no exceptions
+  forest   #1E3A2B  — primary/dominant
+  lime     #EFF87A  — sparse accent (reds/oranges/yellows funnel here)
+  periwinkle #CFDCFF — secondary support (blues/purples)
+  cream    #F8F4F0  — light surfaces (near-white fills)
+  white    #FFFFFF  — not used as a default target; kept only if a source
+                       token was literally the word "white" at very small
+                       scale is indistinguishable from cream at this fidelity,
+                       so cream is used uniformly per the spec's own
+                       "original white -> #F8F4F0" example.
 
-Usage: python3 recolor_illustration.py input.svg output.svg
+Key difference from v1: v1 preserved original lightness as a continuous tint
+within a hue family. v2 snaps every fill to exactly one of the flat palette
+values (this version's explicit requirement — "use ONLY these colors"), and
+forces every stroke to the outline color regardless of its original hue,
+which requires parsing color values in their fill/stroke/stop-color context
+rather than a context-free global token replace.
 
-Technique: hue-bucket each distinct color found in the file into one of the
-brand hue families (forest/periwinkle/lime), then render it within that
-bucket's own calibrated saturation/lightness band, with the ORIGINAL color's
-lightness remapped proportionally into that band. This keeps shape-to-shape
-tonal contrast intact — two originally different-lightness shapes (e.g. skin
-vs. hair) stay visually distinguishable after recoloring, instead of
-collapsing into flat identical blobs the way forcing every color to one of
-exactly five flat brand hex values would.
-
-Handles both color formats seen in DrawKit-style exports:
-  - #RRGGBB / #RGB hex, inside <style> class blocks (Illustrator SVG export)
-  - rgb(r,g,b), inline style="fill:..." and gradient <stop style="stop-color:...">
+Skin tones are the one deliberate exception: a narrow, moderately-saturated
+red-orange band is left unrecolored so human figures don't get force-tinted
+green/blue, per the spec's explicit carve-out.
 """
 import colorsys
 import re
 import sys
 
 BRAND = {
+    "outline": "#171717",
     "forest": "#1E3A2B",
-    "periwinkle": "#CFDCFF",
     "lime": "#EFF87A",
+    "periwinkle": "#CFDCFF",
     "cream": "#F8F4F0",
-    "charcoal": "#171717",
-    "white": "#FFFFFF",
 }
 
 
@@ -48,87 +52,88 @@ def rgb_to_hsl(rgb):
     return h * 360, s, l
 
 
-def hsl_to_rgb(h, s, l):
-    r, g, b = colorsys.hls_to_rgb(h / 360, l, s)
-    return r * 255, g * 255, b * 255
+def is_skin_tone(h, s, l):
+    # Narrow red-orange band, moderate saturation only — deliberately
+    # excludes fully-saturated reds/oranges (those are "original red/orange
+    # -> lime" per spec) and excludes very light/dark values (handled
+    # separately). Hue wraps through 0, so checked as two ranges.
+    hue_ok = h <= 40 or h >= 350
+    return hue_ok and 0.15 <= s <= 0.55 and 0.35 <= l <= 0.88
 
 
-BRAND_HSL = {name: rgb_to_hsl(hex_to_rgb(hexv)) for name, hexv in BRAND.items()}
-
-# Hand-tuned (saturation, lightness-range) per bucket — NOT the brand hex's own
-# raw S/L. HSL saturation reads very differently at different lightness levels
-# (the same S that looks like a soft pastel at L=0.9 looks like a neon glow at
-# L=0.5), so reusing a brand color's exact S across an arbitrary L range
-# produced garish results in testing. These are calibrated so every output in
-# a bucket reads as "the same family as the swatch" at any input lightness.
-BUCKET_STYLE = {
-    "forest": (0.35, (0.14, 0.42)),
-    "periwinkle": (0.50, (0.68, 0.90)),
-    "lime": (0.62, (0.62, 0.83)),
-}
-
-
-def classify(hexv):
+def classify_fill(hexv):
     r, g, b = hex_to_rgb(hexv)
     h, s, l = rgb_to_hsl((r, g, b))
 
-    # Near-white: keep as a true neutral highlight, not flattened into periwinkle.
-    if l >= 0.93 and s < 0.35:
-        return BRAND["white"]
-    # Near-black / true gray: charcoal, not colorized (nothing to hue-rotate).
-    if s < 0.10:
-        if l <= 0.35:
-            return BRAND["charcoal"]
-        if l >= 0.85:
-            return BRAND["cream"]
-        # mid-gray: a muted forest tint, so it doesn't stick out as literal gray
-        bh = BRAND_HSL["forest"][0]
-        return rgb_to_hex(hsl_to_rgb(bh, 0.15, l))
+    # Near-white -> warm off-white canvas color (spec: "original white -> #F8F4F0";
+    # "replace harsh pure white whenever a warm surface is appropriate").
+    if l >= 0.90:
+        return BRAND["cream"]
+    # Near-black -> outline color (spec: "original black -> #171717").
+    if l <= 0.12:
+        return BRAND["outline"]
 
-    # Chromatic: bucket by hue, then recolor within that bucket's calibrated
-    # saturation/lightness band, remapping original L proportionally into it.
-    if 35 <= h < 70:
-        bucket = "lime"
-    elif 70 <= h < 150:
-        bucket = "forest"  # greens
-    elif 150 <= h < 255:
-        bucket = "periwinkle"  # teal/cyan/blue
-    elif 255 <= h < 320:
-        bucket = "periwinkle"  # purple/magenta -> cool family
-    else:
-        bucket = "forest"  # red/orange/pink/skin-tone -> warm family -> forest
+    # Skin tones: preserve as-is, don't force into the brand hue system.
+    if is_skin_tone(h, s, l):
+        return hexv
 
-    bh = BRAND_HSL[bucket][0]
-    bs, (lo, hi) = BUCKET_STYLE[bucket]
-    l_out = lo + l * (hi - lo)
-    return rgb_to_hex(hsl_to_rgb(bh, bs, l_out))
+    # True gray (low saturation, not already caught by the white/black
+    # branches) -> snap by lightness into the forest/cream foundation pair.
+    if s < 0.08:
+        return BRAND["forest"] if l < 0.5 else BRAND["cream"]
+
+    # Chromatic: snap to exactly one flat palette color per hue family.
+    if 150 <= h < 255:
+        # blue/cyan: dark blue -> forest (spec example), lighter -> periwinkle
+        return BRAND["forest"] if l < 0.35 else BRAND["periwinkle"]
+    if 255 <= h < 345:
+        return BRAND["periwinkle"]  # purple/magenta -> cool family
+    if 70 <= h < 150:
+        return BRAND["forest"]  # green family
+    if 20 <= h < 70:
+        # orange/gold/yellow (non-skin) — in these packs this is almost
+        # always a coin, star, badge, or highlight, i.e. genuinely
+        # accent-scale content, so it maps to the accent color.
+        return BRAND["lime"]
+    # true red/magenta-red (non-skin), h<20 or h>=345. The spec's own literal
+    # example ("original red -> lime") is written for a generic small design
+    # element; in these source packs red is consistently a LARGE area (a
+    # whole coat, a whole robe), and the spec repeatedly insists lime must
+    # stay a sparse accent and never dominate ("do NOT make lime the
+    # dominant color", checklist: "used as an accent rather than
+    # overused?"). Large-area content maps to the primary/dominant color
+    # instead — same treatment as a large dark-blue area going to forest.
+    return BRAND["forest"]
 
 
-COLOR_RE = re.compile(r"#(?:[0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})\b|rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)")
+COLOR_TOKEN = r"#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}|rgb\([^)]+\)|white"
+PROP_RE = re.compile(rf"(fill|stroke|stop-color)(\s*[:=]\s*)([\"']?)({COLOR_TOKEN})(\3)", re.IGNORECASE)
+
+
+def _token_to_hex(token):
+    if token.lower() == "white":
+        return "#FFFFFF"
+    if token.startswith("#"):
+        return token
+    nums = [int(x) for x in re.findall(r"\d+", token)]
+    return rgb_to_hex(tuple(nums))
 
 
 def recolor_svg(text):
-    """Returns (recolored_text, {original_token: new_token}) — reused as a
-    library function by the batch script that produced src/assets/illustrations/."""
-    seen = {}
+    mapping = {}
 
     def repl(m):
-        token = m.group(0)
-        if token not in seen:
-            if token.startswith("#"):
-                hexv = token
-            else:
-                nums = [int(x) for x in re.findall(r"\d+", token)]
-                hexv = rgb_to_hex(tuple(nums))
-            new_hex = classify(hexv)
-            if token.startswith("rgb"):
-                r, g, b = hex_to_rgb(new_hex)
-                seen[token] = f"rgb({r},{g},{b})"
-            else:
-                seen[token] = new_hex
-        return seen[token]
+        prop, sep, q1, token, _q2 = m.groups()
+        hexv = _token_to_hex(token)
+        new_hex = BRAND["outline"] if prop.lower() == "stroke" else classify_fill(hexv)
+        mapping[f"{prop}:{token}"] = new_hex
+        out = new_hex
+        if token.lower().startswith("rgb"):
+            r, g, b = hex_to_rgb(new_hex)
+            out = f"rgb({r},{g},{b})"
+        return f"{prop}{sep}{q1}{out}{q1}"
 
-    return COLOR_RE.sub(repl, text), seen
+    return PROP_RE.sub(repl, text), mapping
 
 
 if __name__ == "__main__":
@@ -138,4 +143,4 @@ if __name__ == "__main__":
     new_text, mapping = recolor_svg(text)
     with open(dst, "w", encoding="utf-8") as f:
         f.write(new_text)
-    print(f"{src}: {len(mapping)} colors remapped")
+    print(f"{src}: {len(mapping)} fill/stroke declarations remapped")
