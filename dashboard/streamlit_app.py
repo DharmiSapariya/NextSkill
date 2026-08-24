@@ -5,215 +5,38 @@ Run with:
     streamlit run streamlit_app.py
 
 Assumes the FastAPI backend is running locally (default: http://localhost:8000).
-Sign up or log in from the sidebar — /recommend and /recommend/evidence need
-an authenticated user.
-"""
 
-import requests
+This file is the app shell only: page config, the shared sidebar (rendered
+once here, persists across every page since Streamlit re-runs this script
+top-to-bottom on every navigation), and the explicit page registry via
+st.navigation()/st.Page() — the modern multipage API, used instead of bare
+pages/ folder auto-discovery because st.page_link/st.switch_page need a
+page to be explicitly registered to resolve reliably.
+"""
 import streamlit as st
-import pandas as pd
+
+from common import render_sidebar
 
 st.set_page_config(page_title="NextSkill", page_icon="🎯", layout="wide")
 
-# ---------------------------------------------------------------------------
-# Sidebar: connection + auth
-# ---------------------------------------------------------------------------
-st.sidebar.title("NextSkill")
-st.sidebar.caption("Market-aware skill-gap recommendations")
-
-api_base = st.sidebar.text_input("API base URL", value="http://localhost:8000")
-
-if "access_token" not in st.session_state:
-    st.session_state.access_token = None
-    st.session_state.user_email = None
-
-st.sidebar.divider()
-
-if st.session_state.access_token:
-    st.sidebar.success(f"Logged in as {st.session_state.user_email}")
-    if st.sidebar.button("Log out"):
-        st.session_state.access_token = None
-        st.session_state.user_email = None
-        st.rerun()
-else:
-    auth_tab_login, auth_tab_signup = st.sidebar.tabs(["Log in", "Sign up"])
-
-    for tab, endpoint, label in [
-        (auth_tab_login, "/auth/login", "Log in"),
-        (auth_tab_signup, "/auth/signup", "Sign up"),
-    ]:
-        with tab:
-            email = st.text_input("Email", key=f"email_{endpoint}")
-            password = st.text_input("Password", type="password", key=f"password_{endpoint}")
-            if st.button(label, key=f"submit_{endpoint}"):
-                try:
-                    r = requests.post(f"{api_base}{endpoint}", json={"email": email, "password": password}, timeout=10)
-                except requests.exceptions.ConnectionError:
-                    st.error(f"Couldn't reach the API at {api_base}. Is uvicorn running?")
-                else:
-                    if r.status_code == 200:
-                        st.session_state.access_token = r.json()["access_token"]
-                        st.session_state.user_email = email
-                        st.rerun()
-                    else:
-                        st.error(r.json().get("detail", f"{label} failed ({r.status_code})"))
-
-st.sidebar.divider()
-st.sidebar.caption(
-    "Health, jobs, trends, and company data are open endpoints — no login needed."
+# Pages must be registered via st.navigation() BEFORE render_sidebar() runs —
+# st.sidebar.page_link() needs the target page already registered to resolve
+# its URL, or it raises KeyError: 'url_pathname'. Confirmed this ordering
+# matters by hitting that exact error with render_sidebar() called first.
+pages = st.navigation(
+    [
+        st.Page("pages/_home_content.py", title="Home", icon="🏠", default=True, url_path="home"),
+        st.Page("pages/0_Login.py", title="Login", icon="🔑", url_path="login"),
+        st.Page("pages/1_Recommend.py", title="Recommend", icon="🎯", url_path="recommend"),
+        st.Page("pages/2_Explore_Skill.py", title="Explore a Skill", icon="🔎", url_path="explore"),
+        st.Page("pages/3_Career_Paths.py", title="Career Paths", icon="🧭", url_path="career-paths"),
+        st.Page("pages/4_Skill_Network.py", title="Skill Network", icon="🕸️", url_path="skill-network"),
+        st.Page("pages/5_Resume_and_Salary.py", title="Resume & Salary", icon="📄", url_path="resume-salary"),
+        st.Page("pages/6_Jobs.py", title="Jobs", icon="💼", url_path="jobs"),
+        st.Page("pages/7_Companies.py", title="Companies", icon="🏢", url_path="companies"),
+        st.Page("pages/8_My_Account.py", title="My Account", icon="👤", url_path="account"),
+        st.Page("pages/9_Admin.py", title="Admin", icon="🛡️", url_path="admin"),
+    ]
 )
-
-
-def api_get(path, params=None):
-    try:
-        r = requests.get(f"{api_base}{path}", params=params, timeout=10)
-        return r
-    except requests.exceptions.ConnectionError:
-        st.error(f"Couldn't reach the API at {api_base}. Is uvicorn running?")
-        return None
-
-
-def api_post_authed(path, json_body):
-    try:
-        r = requests.post(
-            f"{api_base}{path}",
-            json=json_body,
-            headers={"Authorization": f"Bearer {st.session_state.access_token}"},
-            timeout=15,
-        )
-        return r
-    except requests.exceptions.ConnectionError:
-        st.error(f"Couldn't reach the API at {api_base}. Is uvicorn running?")
-        return None
-
-
-# ---------------------------------------------------------------------------
-# Health check banner
-# ---------------------------------------------------------------------------
-health = api_get("/health")
-if health is not None:
-    if health.status_code == 200:
-        st.sidebar.success("API reachable")
-    else:
-        st.sidebar.error(f"API returned {health.status_code}")
-
-st.title("🎯 NextSkill")
-st.caption(
-    "Free, transparent, market-aware skill-gap recommendations — "
-    "backed by real job posting evidence, not a black-box score."
-)
-
-tab_recommend, tab_explore, tab_companies = st.tabs(
-    ["Skill Gap Recommender", "Explore a Skill", "Top Hiring Companies"]
-)
-
-# ---------------------------------------------------------------------------
-# Tab 1: Recommendation engine (the core product)
-# ---------------------------------------------------------------------------
-with tab_recommend:
-    st.subheader("What should I learn next?")
-
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        skills_input = st.text_input(
-            "Your current skills (comma-separated)",
-            placeholder="Python, SQL, Excel",
-        )
-    with col2:
-        target_role = st.text_input("Target role", placeholder="data scientist")
-
-    show_evidence = st.checkbox("Show posting evidence for each recommendation", value=True)
-
-    if st.button("Get recommendations", type="primary"):
-        if not st.session_state.access_token:
-            st.warning("Log in or sign up in the sidebar first — this endpoint requires an account.")
-        elif not skills_input or not target_role:
-            st.warning("Fill in both your current skills and a target role.")
-        else:
-            user_skills = [s.strip() for s in skills_input.split(",") if s.strip()]
-            endpoint = "/recommend/evidence" if show_evidence else "/recommend"
-            resp = api_post_authed(endpoint, {"skills": user_skills, "target_role": target_role})
-
-            if resp is not None:
-                if resp.status_code in (401, 403):
-                    st.error("Not authenticated — please log in again.")
-                elif resp.status_code == 429:
-                    st.error("429 Too Many Requests — you've hit the rate limit (10/min). Wait a moment.")
-                elif resp.status_code != 200:
-                    st.error(f"Unexpected response: {resp.status_code} — {resp.text}")
-                else:
-                    data = resp.json()
-                    recs = data.get("recommendations", [])
-                    if not recs:
-                        st.info("No gap skills found — try a broader role keyword.")
-                    else:
-                        st.success(f"Top skills to close the gap for **{target_role}**")
-                        df = pd.DataFrame(recs)
-                        if "postings_mentioning_it" in df.columns:
-                            st.bar_chart(
-                                df.set_index("skill")["postings_mentioning_it"],
-                                horizontal=True,
-                            )
-                        st.dataframe(df, use_container_width=True)
-
-                        if show_evidence:
-                            for rec in recs:
-                                evidence = rec.get("evidence") or rec.get("example_postings")
-                                if evidence:
-                                    with st.expander(f"Evidence for '{rec.get('skill')}'"):
-                                        for e in evidence:
-                                            st.write(f"**{e.get('title')}** — {e.get('company')} ({e.get('location')})")
-
-# ---------------------------------------------------------------------------
-# Tab 2: Explore a single skill — trend + co-occurrence
-# ---------------------------------------------------------------------------
-with tab_explore:
-    st.subheader("Explore a skill")
-    skill_query = st.text_input("Skill name", placeholder="React", key="skill_explore")
-
-    if st.button("Look it up"):
-        if not skill_query:
-            st.warning("Enter a skill name.")
-        else:
-            trend_resp = api_get(f"/trends/{skill_query}")
-            related_resp = api_get(f"/skills/{skill_query}/related")
-
-            col_a, col_b = st.columns(2)
-
-            with col_a:
-                st.markdown("**Demand snapshot**")
-                if trend_resp is not None:
-                    if trend_resp.status_code == 404:
-                        st.info(f"No data found for '{skill_query}'.")
-                    elif trend_resp.status_code == 200:
-                        st.json(trend_resp.json())
-
-            with col_b:
-                st.markdown("**Commonly appears alongside**")
-                if related_resp is not None:
-                    if related_resp.status_code == 404:
-                        st.info(f"No co-occurrence data for '{skill_query}'.")
-                    elif related_resp.status_code == 200:
-                        related_data = related_resp.json()
-                        related_list = related_data.get("related") or related_data.get("results")
-                        if related_list:
-                            st.dataframe(pd.DataFrame(related_list), use_container_width=True)
-                        else:
-                            st.json(related_data)
-
-# ---------------------------------------------------------------------------
-# Tab 3: Top hiring companies
-# ---------------------------------------------------------------------------
-with tab_companies:
-    st.subheader("Top hiring companies")
-    limit = st.slider("How many to show", min_value=5, max_value=50, value=10)
-
-    resp = api_get("/companies/top", params={"limit": limit})
-    if resp is not None and resp.status_code == 200:
-        results = resp.json().get("results", [])
-        if results:
-            df = pd.DataFrame(results)
-            st.bar_chart(df.set_index("company")["postings"], horizontal=True)
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("No company data available yet.")
+render_sidebar()
+pages.run()
