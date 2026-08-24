@@ -1030,6 +1030,86 @@ def test_delete_account_removes_user_and_cascades_history_and_shared_reports():
     limiter.reset()
 
 
+def test_match_score_is_rate_limited():
+    # /match-score, /predict-salary, and /auth/me/resume were unlimited
+    # despite being authenticated compute-heavy endpoints — a single
+    # compromised/leaked token could otherwise hammer the salary model or
+    # resume parser with no throttle at all. Same 10/minute as /recommend.
+    from api import limiter
+
+    limiter.reset()
+    email = f"ratelimit-match-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    limiter.reset()  # the signup call above shares the same per-IP counter
+
+    for _ in range(10):
+        response = client.post(
+            "/match-score", json={"skills": ["Python"], "target_role": "data scientist"}, headers=headers
+        )
+        assert response.status_code == 200
+
+    response = client.post(
+        "/match-score", json={"skills": ["Python"], "target_role": "data scientist"}, headers=headers
+    )
+    assert response.status_code == 429
+    limiter.reset()
+
+
+def test_list_skills_returns_results():
+    response = client.get("/skills?limit=5")
+    assert response.status_code == 200
+    data = response.json()
+    assert "results" in data
+    assert len(data["results"]) <= 5
+    assert data["total"] > 0
+    mentions = [s["mention_count"] for s in data["results"]]
+    assert mentions == sorted(mentions, reverse=True)
+
+
+def test_list_skills_filters_by_query():
+    response = client.get("/skills?q=python&limit=20")
+    assert response.status_code == 200
+    for skill in response.json()["results"]:
+        assert "python" in skill["name"].lower()
+
+
+def test_list_skills_rejects_non_positive_limit():
+    assert client.get("/skills?limit=0").status_code == 422
+    assert client.get("/skills?limit=-1").status_code == 422
+
+
+def test_list_companies_returns_results():
+    response = client.get("/companies?limit=5")
+    assert response.status_code == 200
+    data = response.json()
+    assert "results" in data
+    assert len(data["results"]) <= 5
+    assert data["total"] > 0
+    postings = [c["postings"] for c in data["results"]]
+    assert postings == sorted(postings, reverse=True)
+
+
+def test_list_companies_filters_by_query():
+    known = client.get("/companies?limit=1").json()["results"][0]["company"]
+    keyword = known[:4]
+    response = client.get(f"/companies?q={keyword}&limit=50")
+    assert response.status_code == 200
+    for company in response.json()["results"]:
+        assert keyword.lower() in company["company"].lower()
+
+
+def test_list_companies_pagination_is_consistent_with_total():
+    total = client.get("/companies?limit=1").json()["total"]
+    all_companies = client.get(f"/companies?limit={min(total, 100)}").json()["results"]
+    assert len({c["company"] for c in all_companies}) == len(all_companies)  # no duplicates across the page
+
+
+def test_list_companies_rejects_non_positive_limit():
+    assert client.get("/companies?limit=0").status_code == 422
+    assert client.get("/companies?limit=-1").status_code == 422
+
+
 def test_health_reports_database_and_redis_fields():
     response = client.get("/health")
     assert response.status_code == 200

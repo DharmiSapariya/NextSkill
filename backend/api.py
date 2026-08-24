@@ -399,7 +399,10 @@ MAX_RESUME_SIZE_BYTES = 5 * 1024 * 1024  # 5MB — generous for a resume, small 
 
 
 @app.post("/auth/me/resume")
-async def upload_resume(file: UploadFile = File(...), current_user: User = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def upload_resume(
+    request: Request, file: UploadFile = File(...), current_user: User = Depends(get_current_user)
+):
     """Parses an uploaded resume (PDF or DOCX) and merges the skills it finds
     into the user's saved skill profile."""
     file_bytes = await file.read(MAX_RESUME_SIZE_BYTES + 1)
@@ -427,7 +430,8 @@ async def upload_resume(file: UploadFile = File(...), current_user: User = Depen
 
 
 @app.post("/match-score")
-def match_score(body: RecommendRequest, current_user: User = Depends(get_current_user)):
+@limiter.limit("10/minute")
+def match_score(request: Request, body: RecommendRequest, current_user: User = Depends(get_current_user)):
     """Statistical match score: what % of real postings for the target role
     the user's current skills would be a strong match for."""
     skills = body.skills if body.skills is not None else (current_user.skills or [])
@@ -438,7 +442,8 @@ def match_score(body: RecommendRequest, current_user: User = Depends(get_current
 
 
 @app.post("/predict-salary")
-def salary_prediction(body: RecommendRequest, current_user: User = Depends(get_current_user)):
+@limiter.limit("10/minute")
+def salary_prediction(request: Request, body: RecommendRequest, current_user: User = Depends(get_current_user)):
     skills = body.skills if body.skills is not None else (current_user.skills or [])
     role_resolution = resolve_role(body.target_role)
     result = predict_salary(skills, role_resolution["resolved"])
@@ -566,6 +571,35 @@ def top_companies(limit: int = Query(10, ge=1, le=50)):
         .all()
     )
     return {"results": [{"company": name, "postings": count} for name, count in results]}
+
+
+@app.get("/companies")
+def list_companies(
+    q: Optional[str] = Query(None, description="Filter by keyword in company name"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Full paginated/searchable company browse — /companies/top is a fixed-size
+    leaderboard (top N by posting count, no paging, no name search); this is
+    the general-purpose listing behind it for a "browse all companies" page."""
+    query = (
+        session.query(Company.name, func.count(Job.id).label("postings"))
+        .join(Job, Job.company_id == Company.id)
+        .group_by(Company.name)
+    )
+    if q:
+        query = query.filter(Company.name.ilike(f"%{q}%"))
+
+    # total distinct companies matching the filter, independent of pagination
+    total = query.count()
+    results = query.order_by(func.count(Job.id).desc()).offset(offset).limit(limit).all()
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "results": [{"company": name, "postings": count} for name, count in results],
+    }
 
 
 ADMIN_SIGNUP_WINDOW_DAYS = 30
@@ -842,6 +876,35 @@ def recommend_with_evidence(request: Request, body: RecommendRequest, current_us
         "your_skills": skills,
         "recommendations": results,
         "tier": current_user.tier,
+    }
+
+
+@app.get("/skills")
+def list_skills(
+    q: Optional[str] = Query(None, description="Filter by keyword in skill name"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
+    """Paginated/searchable browse over every skill actually seen in a real
+    posting — grounded in job_skills mention counts, not the static
+    SKILLS_TAXONOMY seed list, consistent with the rest of the API's
+    evidence-based approach. Useful for e.g. an autocomplete/browse UI."""
+    query = (
+        session.query(Skill.name, func.count(JobSkill.id).label("mentions"))
+        .join(JobSkill, JobSkill.skill_id == Skill.id)
+        .group_by(Skill.name)
+    )
+    if q:
+        query = query.filter(Skill.name.ilike(f"%{q}%"))
+
+    total = query.count()
+    results = query.order_by(func.count(JobSkill.id).desc()).offset(offset).limit(limit).all()
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "results": [{"name": name, "mention_count": count} for name, count in results],
     }
 
 
