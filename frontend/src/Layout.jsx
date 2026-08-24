@@ -15,10 +15,10 @@ export default function Layout() {
   const { isLoggedIn, profile, logout } = useAuth();
 
   return (
-    <div className="min-h-screen bg-white text-ink">
+    <div className="min-h-screen bg-cream text-charcoal">
       <header className="border-b border-black/10">
         <nav className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-4">
-          <Link to="/" className="font-bold text-lg text-primary">
+          <Link to="/" className="font-bold text-lg text-forest">
             NextSkill
           </Link>
           <div className="flex flex-1 flex-wrap gap-4 text-sm">
@@ -27,7 +27,7 @@ export default function Layout() {
                 key={link.to}
                 to={link.to}
                 className={({ isActive }) =>
-                  isActive ? "font-semibold text-primary" : "text-ink/70 hover:text-ink"
+                  isActive ? "font-semibold text-forest" : "text-charcoal/70 hover:text-charcoal"
                 }
               >
                 {link.label}
@@ -36,20 +36,20 @@ export default function Layout() {
           </div>
           {isLoggedIn ? (
             <div className="flex items-center gap-3 text-sm">
-              <Link to="/account" className="text-ink/70 hover:text-ink">
+              <Link to="/account" className="text-charcoal/70 hover:text-charcoal">
                 {profile?.email ?? "My Account"}
               </Link>
               {profile?.is_admin && (
-                <Link to="/admin" className="text-ink/70 hover:text-ink">
+                <Link to="/admin" className="text-charcoal/70 hover:text-charcoal">
                   Admin
                 </Link>
               )}
-              <button onClick={logout} className="text-ink/50 hover:text-ink">
+              <button onClick={logout} className="text-charcoal/50 hover:text-charcoal">
                 Log out
               </button>
             </div>
           ) : (
-            <Link to="/login" className="text-sm font-semibold text-primary">
+            <Link to="/login" className="text-sm font-semibold text-forest">
               Log in / Sign up
             </Link>
           )}

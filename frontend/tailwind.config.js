@@ -4,16 +4,24 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Starting point only — carries over the coral accent already
-        // established in dashboard/.streamlit/config.toml (primaryColor
-        // #FF4B4B), so the two frontends don't clash on brand color while
-        // this one gets built out page by page.
-        primary: "#FF4B4B",
-        ink: "#161616",
-        surface: "#F7F7FA",
+        // Locked palette — NextSkill_Final_Color_Usage_Guide_v2. Exactly
+        // five brand colors; white/success/warning/danger are neutral or
+        // semantic tokens, not brand colors. Do not change these per-screen.
+        forest: "#1E3A2B", // brand / actions
+        periwinkle: "#CFDCFF", // secondary / personality
+        lime: "#EFF87A", // attention — 1-3% of any screen, never a fill
+        cream: "#F8F4F0", // dominant canvas
+        charcoal: "#171717", // typography / contrast
+        muted: "#626762",
+        border: "#E4DED7",
+        success: "#2F7D4A",
+        warning: "#A34B3A",
+        danger: "#B42318",
+      },
+      fontFamily: {
+        display: ["Aalto Display", "system-ui", "sans-serif"],
       },
     },
   },
   plugins: [],
 }
-

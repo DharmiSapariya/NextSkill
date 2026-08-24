@@ -38,19 +38,19 @@ export default function Login() {
 
   return (
     <section className="mx-auto max-w-sm px-6 py-24">
-      <h1 className="text-2xl font-bold text-ink">
+      <h1 className="text-2xl font-bold text-charcoal">
         {mode === "login" ? "Log in" : "Sign up"}
       </h1>
 
       <div className="mt-4 flex gap-4 text-sm">
         <button
-          className={mode === "login" ? "font-semibold text-primary" : "text-ink/50"}
+          className={mode === "login" ? "font-semibold text-forest" : "text-charcoal/50"}
           onClick={() => setMode("login")}
         >
           Log in
         </button>
         <button
-          className={mode === "signup" ? "font-semibold text-primary" : "text-ink/50"}
+          className={mode === "signup" ? "font-semibold text-forest" : "text-charcoal/50"}
           onClick={() => setMode("signup")}
         >
           Sign up
@@ -80,7 +80,7 @@ export default function Login() {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded bg-primary px-4 py-2 font-semibold text-white disabled:opacity-50"
+          className="rounded bg-forest px-4 py-2 font-semibold text-white disabled:opacity-50"
         >
           {submitting ? "Please wait…" : mode === "login" ? "Log in" : "Sign up"}
         </button>
