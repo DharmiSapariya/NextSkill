@@ -26,7 +26,8 @@ sentry_sdk.init(
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("nextskill.api")
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
+from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, session
@@ -39,7 +40,7 @@ from role_graph import build_transition_graph, nearest_roles, TRACKED_ROLES
 from skill_graph import build_skill_co_occurrence_graph, TOP_N_SKILLS
 from role_matcher import resolve_role
 from digest import compute_digest_for_user
-from cache import cache_get, cache_set
+from cache import cache_get, cache_set, redis_healthy
 from seniority import infer_seniority, as_postgres_regex, SENIORITY_PATTERNS
 
 app = FastAPI(
@@ -104,9 +105,38 @@ class SkillsUpdateRequest(BaseModel):
     skills: list[str]
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)
+
+
+class AccountDeleteRequest(BaseModel):
+    # Deleting an account is irreversible (it cascades to the user's
+    # recommendation history and shared report links), so it requires the
+    # same proof-of-identity a password change does — a valid bearer token
+    # alone isn't enough for a destructive, unrecoverable action.
+    password: str
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    """Liveness + dependency check. Redis is optional by design (cache.py
+    fails open), so an unreachable Redis is reported but doesn't flip the
+    overall status to degraded — only a broken database connection does,
+    since the API can't actually serve requests without one."""
+    try:
+        session.execute(text("SELECT 1"))
+        database = "ok"
+    except SQLAlchemyError:
+        database = "error"
+
+    redis_status = "ok" if redis_healthy() else ("disabled" if not os.getenv("REDIS_URL") else "unavailable")
+
+    return {
+        "status": "ok" if database == "ok" else "degraded",
+        "database": database,
+        "redis": redis_status,
+    }
 
 
 @app.post("/auth/signup", response_model=TokenResponse)
@@ -150,6 +180,43 @@ def update_my_skills(body: SkillsUpdateRequest, current_user: User = Depends(get
     current_user.skills = body.skills
     session.commit()
     return {"id": current_user.id, "email": current_user.email, "skills": current_user.skills}
+
+
+@app.put("/auth/me/password")
+@limiter.limit("5/minute")
+def change_password(
+    request: Request, body: PasswordChangeRequest, current_user: User = Depends(get_current_user)
+):
+    """Requires the current password, not just a valid token — a stolen
+    still-logged-in session shouldn't be enough to lock the real owner out
+    by itself. Rate-limited same as login/signup: it's still a password
+    guessing surface, just gated behind a valid token instead of an email."""
+    if not verify_password(body.current_password, current_user.hashed_password):
+        logger.warning("Failed password change attempt: user id=%s", current_user.id)
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    current_user.hashed_password = hash_password(body.new_password)
+    session.commit()
+    logger.info("Password changed: user id=%s", current_user.id)
+    return {"status": "password updated"}
+
+
+@app.delete("/auth/me")
+def delete_account(body: AccountDeleteRequest, current_user: User = Depends(get_current_user)):
+    """Deletes the account and everything that references it. There's no
+    ON DELETE CASCADE on these foreign keys (models.py), so the dependent
+    rows are removed explicitly, in FK-safe order, before the user row —
+    otherwise this fails with a foreign key violation instead of doing
+    anything."""
+    if not verify_password(body.password, current_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Password is incorrect")
+
+    user_id = current_user.id
+    session.query(SharedReport).filter_by(user_id=user_id).delete()
+    session.query(RecommendationHistory).filter_by(user_id=user_id).delete()
+    session.delete(current_user)
+    session.commit()
+    logger.info("Account deleted: user id=%s", user_id)
+    return {"status": "account deleted"}
 
 
 FREE_TIER_HISTORY_LIMIT_CEILING = 20  # matches this endpoint's original default exactly — free never regresses

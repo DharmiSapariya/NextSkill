@@ -30,7 +30,10 @@ def auth_headers():
 def test_health():
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["database"] == "ok"
+    assert body["redis"] in {"ok", "disabled", "unavailable"}
 
 
 def test_signup_and_login():
@@ -909,3 +912,126 @@ def test_non_owner_cannot_revoke_someone_elses_shared_report():
 
     # Confirm it's still live — the failed revoke attempt from a non-owner didn't delete it.
     assert client.get(f"/reports/{token}").status_code == 200
+
+
+def test_change_password_requires_auth():
+    response = client.put("/auth/me/password", json={"current_password": "x", "new_password": "newpassword123"})
+    assert response.status_code == 401
+
+
+def test_change_password_rejects_wrong_current_password():
+    from api import limiter
+
+    limiter.reset()
+    email = f"pwchange-wrong-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    response = client.put(
+        "/auth/me/password",
+        json={"current_password": "wrongpassword", "new_password": "newpassword123"},
+        headers=headers,
+    )
+    assert response.status_code == 401
+
+    # The password wasn't touched — the original still logs in fine.
+    limiter.reset()
+    still_works = client.post("/auth/login", json={"email": email, "password": "testpassword123"})
+    assert still_works.status_code == 200
+    limiter.reset()
+
+
+def test_change_password_rejects_new_password_too_short():
+    from api import limiter
+
+    limiter.reset()
+    email = f"pwchange-short-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    response = client.put(
+        "/auth/me/password",
+        json={"current_password": "testpassword123", "new_password": "short"},
+        headers=headers,
+    )
+    assert response.status_code == 422
+    limiter.reset()
+
+
+def test_change_password_succeeds_and_old_password_stops_working():
+    from api import limiter
+
+    limiter.reset()
+    email = f"pwchange-ok-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    response = client.put(
+        "/auth/me/password",
+        json={"current_password": "testpassword123", "new_password": "brandnewpassword456"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    limiter.reset()
+    old_login = client.post("/auth/login", json={"email": email, "password": "testpassword123"})
+    assert old_login.status_code == 401
+
+    limiter.reset()
+    new_login = client.post("/auth/login", json={"email": email, "password": "brandnewpassword456"})
+    assert new_login.status_code == 200
+    limiter.reset()
+
+
+def test_delete_account_requires_auth():
+    response = client.request("DELETE", "/auth/me", json={"password": "x"})
+    assert response.status_code == 401
+
+
+def test_delete_account_rejects_wrong_password():
+    email = f"delete-wrong-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    response = client.request("DELETE", "/auth/me", json={"password": "wrongpassword"}, headers=headers)
+    assert response.status_code == 401
+
+    # Still there — /auth/me still resolves with the same token.
+    assert client.get("/auth/me", headers=headers).status_code == 200
+
+
+def test_delete_account_removes_user_and_cascades_history_and_shared_reports():
+    from api import limiter
+
+    limiter.reset()
+    email = f"delete-ok-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    history_id = _make_history_entry(headers, "site reliability engineer")
+    token = client.post(f"/auth/me/history/{history_id}/share", headers=headers).json()["token"]
+    assert client.get(f"/reports/{token}").status_code == 200
+
+    response = client.request("DELETE", "/auth/me", json={"password": "testpassword123"}, headers=headers)
+    assert response.status_code == 200
+    assert response.json() == {"status": "account deleted"}
+
+    # The token is dead now — no FK violation on startup, and /auth/me for
+    # the deleted user's own (still structurally valid) JWT is rejected.
+    assert client.get("/auth/me", headers=headers).status_code == 401
+
+    # The shared report referencing this user is gone too, not orphaned.
+    assert client.get(f"/reports/{token}").status_code == 404
+
+    # The email is free again — deleting really removed the row, not just flagged it.
+    limiter.reset()
+    resignup = client.post("/auth/signup", json={"email": email, "password": "anotherpassword123"})
+    assert resignup.status_code == 200
+    limiter.reset()
+
+
+def test_health_reports_database_and_redis_fields():
+    response = client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {"status", "database", "redis"}
