@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -7,6 +8,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from models import User, session
+
+logger = logging.getLogger("nextskill.auth")
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-insecure-secret-change-me")
 JWT_ALGORITHM = "HS256"
@@ -54,5 +57,6 @@ def get_current_admin_user(current_user: User = Depends(get_current_user)) -> Us
     provisioned flag (e.g. via a direct DB update), not something a user's
     own signup/login flow can set."""
     if not current_user.is_admin:
+        logger.warning("Admin access denied: user id=%s", current_user.id)
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user

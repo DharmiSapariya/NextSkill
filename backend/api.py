@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException, Query, Depends, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+import logging
 import os
 import secrets
 from dotenv import load_dotenv
@@ -14,6 +16,15 @@ sentry_sdk.init(
     dsn=os.getenv("SENTRY_DSN"),
     traces_sample_rate=0.1
 )
+
+# Sentry only ever sees unhandled exceptions — auth events, admin-access
+# denials, and rate-limit trips are all handled (never raise past their
+# HTTPException/handler), so without this there was no record of them
+# anywhere at all. Configuring the root logger here, not per-module, since
+# this is the process entrypoint uvicorn imports; auth.py just does
+# logging.getLogger(__name__) and inherits this config.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logger = logging.getLogger("nextskill.api")
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_
 from datetime import datetime, timedelta, timezone
@@ -54,7 +65,14 @@ app.add_middleware(
 
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def _log_and_handle_rate_limit(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    logger.warning("Rate limit exceeded: ip=%s path=%s", get_remote_address(request), request.url.path)
+    return _rate_limit_exceeded_handler(request, exc)
+
+
+app.add_exception_handler(RateLimitExceeded, _log_and_handle_rate_limit)
 
 
 class RecommendRequest(BaseModel):
@@ -101,6 +119,7 @@ def signup(request: Request, body: SignupRequest):
     user = User(email=email, hashed_password=hash_password(body.password), skills=[])
     session.add(user)
     session.commit()
+    logger.info("New user signed up: id=%s", user.id)
     return TokenResponse(access_token=create_access_token(user.id))
 
 
@@ -109,7 +128,9 @@ def signup(request: Request, body: SignupRequest):
 def login(request: Request, body: LoginRequest):
     user = session.query(User).filter_by(email=body.email.lower()).first()
     if not user or not verify_password(body.password, user.hashed_password):
+        logger.warning("Failed login attempt: email=%s", body.email.lower())
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    logger.info("User logged in: id=%s", user.id)
     return TokenResponse(access_token=create_access_token(user.id))
 
 
@@ -245,6 +266,7 @@ def share_recommendation(history_id: int, current_user: User = Depends(get_curre
     )
     session.add(shared)
     session.commit()
+    logger.info("Shared report created: user id=%s token=%s", current_user.id, token)
 
     return {"token": token, "share_path": f"/reports/{token}"}
 
@@ -302,6 +324,7 @@ def revoke_shared_report(token: str, current_user: User = Depends(get_current_us
         raise HTTPException(status_code=404, detail="No shared report found for this link")
     session.delete(shared)
     session.commit()
+    logger.info("Shared report revoked: user id=%s token=%s", current_user.id, token)
     return {"revoked": True}
 
 
@@ -321,6 +344,7 @@ async def upload_resume(file: UploadFile = File(...), current_user: User = Depen
     try:
         found_skills = parse_resume(file.filename, file_bytes)
     except ValueError as e:
+        logger.warning("Resume upload rejected: user id=%s reason=%s", current_user.id, e)
         raise HTTPException(status_code=400, detail=str(e))
 
     existing = set(current_user.skills or [])
