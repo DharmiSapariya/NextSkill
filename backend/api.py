@@ -110,6 +110,13 @@ class PasswordChangeRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=72)
 
 
+class AdminUserUpdateRequest(BaseModel):
+    # Both optional and independently settable — an admin adjusting just
+    # tier shouldn't have to also re-specify is_admin (and vice versa).
+    tier: Optional[Literal["free", "pro"]] = None
+    is_admin: Optional[bool] = None
+
+
 class AccountDeleteRequest(BaseModel):
     # Deleting an account is irreversible (it cascades to the user's
     # recommendation history and shared report links), so it requires the
@@ -632,6 +639,73 @@ def admin_stats(current_user: User = Depends(get_current_admin_user)):
         "top_target_roles": [
             {"role": role, "times_requested": count} for role, count in top_target_roles
         ],
+    }
+
+
+@app.get("/admin/users")
+def admin_list_users(
+    q: Optional[str] = Query(None, description="Filter by keyword in email"),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_admin_user),
+):
+    """The individual-user-lookup half of admin_stats' acknowledged gap:
+    tier and is_admin are real, load-bearing access-control fields (Phase 5
+    tiering, admin gating) with no way to see who has what short of a raw
+    SQL query. Read-only; PUT /admin/users/{user_id} is the write side."""
+    query = session.query(User)
+    if q:
+        query = query.filter(User.email.ilike(f"%{q}%"))
+
+    total = query.count()
+    users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "results": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "tier": u.tier,
+                "is_admin": u.is_admin,
+                "skill_count": len(u.skills or []),
+                "created_at": u.created_at.isoformat() if u.created_at else None,
+            }
+            for u in users
+        ],
+    }
+
+
+@app.put("/admin/users/{user_id}")
+def admin_update_user(
+    user_id: int, body: AdminUserUpdateRequest, current_user: User = Depends(get_current_admin_user)
+):
+    """The only way to grant pro/admin access used to be a manual DB update
+    (see the tier/is_admin column comments in models.py) — real for a
+    single-operator project, but not something an actual admin UI could
+    ever drive. This is that missing write path, still admin-gated, not
+    self-service."""
+    target = session.query(User).filter_by(id=user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail=f"No user found with id {user_id}")
+
+    if body.tier is not None:
+        target.tier = body.tier
+    if body.is_admin is not None:
+        target.is_admin = body.is_admin
+    session.commit()
+    logger.info(
+        "User updated by admin: admin id=%s target id=%s tier=%s is_admin=%s",
+        current_user.id, target.id, target.tier, target.is_admin,
+    )
+
+    return {
+        "id": target.id,
+        "email": target.email,
+        "tier": target.tier,
+        "is_admin": target.is_admin,
     }
 
 

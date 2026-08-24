@@ -245,6 +245,91 @@ def test_admin_stats_returns_aggregate_numbers():
     assert isinstance(data["top_target_roles"], list)
 
 
+def test_admin_list_users_requires_auth():
+    response = client.get("/admin/users")
+    assert response.status_code == 401
+
+
+def test_admin_list_users_rejects_non_admin_user(auth_headers):
+    response = client.get("/admin/users", headers=auth_headers)
+    assert response.status_code == 403
+
+
+def test_admin_list_users_returns_results_and_filters_by_email():
+    from api import limiter
+
+    limiter.reset()  # this test signs up 2 users — same shared-counter caveat as the rate-limit tests
+    admin_headers = _make_admin_headers()
+    target_email = f"findme-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    client.post("/auth/signup", json={"email": target_email, "password": "testpassword123"})
+
+    response = client.get(f"/admin/users?q=findme-&limit=10", headers=admin_headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 1
+    assert any(u["email"] == target_email for u in data["results"])
+    match = next(u for u in data["results"] if u["email"] == target_email)
+    assert match["tier"] == "free"
+    assert match["is_admin"] is False
+    assert match["skill_count"] == 0
+
+
+def test_admin_update_user_requires_auth():
+    response = client.put("/admin/users/1", json={"tier": "pro"})
+    assert response.status_code == 401
+
+
+def test_admin_update_user_rejects_non_admin_user(auth_headers):
+    response = client.put("/admin/users/1", json={"tier": "pro"}, headers=auth_headers)
+    assert response.status_code == 403
+
+
+def test_admin_update_user_not_found():
+    admin_headers = _make_admin_headers()
+    response = client.put("/admin/users/999999999", json={"tier": "pro"}, headers=admin_headers)
+    assert response.status_code == 404
+
+
+def test_admin_update_user_grants_pro_tier():
+    from api import limiter
+
+    limiter.reset()  # this test signs up 2 users — same shared-counter caveat as the rate-limit tests
+    admin_headers = _make_admin_headers()
+    target_email = f"promote-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": target_email, "password": "testpassword123"})
+    target_headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    target_id = client.get("/auth/me", headers=target_headers).json()["id"]
+
+    response = client.put(f"/admin/users/{target_id}", json={"tier": "pro"}, headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json()["tier"] == "pro"
+
+    # Takes effect for the target user's own session immediately, not just the response body.
+    me = client.get("/auth/me", headers=target_headers)
+    assert me.json()["tier"] == "pro"
+    assert me.json()["is_admin"] is False  # untouched — only tier was in the request body
+
+
+def test_admin_update_user_grants_admin_without_touching_tier():
+    from api import limiter
+
+    limiter.reset()  # this test signs up 2 users — same shared-counter caveat as the rate-limit tests
+    admin_headers = _make_admin_headers()
+    target_email = f"promote-admin-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": target_email, "password": "testpassword123"})
+    target_headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    target_id = client.get("/auth/me", headers=target_headers).json()["id"]
+
+    response = client.put(f"/admin/users/{target_id}", json={"is_admin": True}, headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json()["is_admin"] is True
+    assert response.json()["tier"] == "free"  # untouched
+
+    # The newly-promoted admin can now use admin-only endpoints themselves.
+    stats = client.get("/admin/stats", headers=target_headers)
+    assert stats.status_code == 200
+
+
 def test_trend_for_known_skill():
     response = client.get("/trends/Python")
     assert response.status_code == 200
