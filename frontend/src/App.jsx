@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
 import RequireAuth from "./lib/RequireAuth";
@@ -13,8 +14,23 @@ import Jobs from "./pages/Jobs";
 import Companies from "./pages/Companies";
 import MyAccount from "./pages/MyAccount";
 import Admin from "./pages/Admin";
+import NextSkillIntro from "./intro/NextSkillIntro";
+
+const INTRO_SEEN_KEY = "nextskill_intro_seen";
 
 export default function App() {
+  // The intro is an entry experience, not a per-navigation transition — it
+  // shows once per browser session (sessionStorage, not localStorage: a
+  // fresh tab/session gets it again, a route change within the same
+  // session never does). Clear sessionStorage to re-trigger it while
+  // iterating on the animation itself.
+  const [showIntro, setShowIntro] = useState(() => !sessionStorage.getItem(INTRO_SEEN_KEY));
+
+  function handleIntroComplete() {
+    sessionStorage.setItem(INTRO_SEEN_KEY, "1");
+    setShowIntro(false);
+  }
+
   return (
     <AuthProvider>
       <BrowserRouter>
@@ -47,6 +63,9 @@ export default function App() {
             />
           </Route>
         </Routes>
+        {/* Overlay, not a swap — the app is already mounted underneath so
+            the intro's exit is a literal reveal, not a page transition. */}
+        {showIntro && <NextSkillIntro onComplete={handleIntroComplete} />}
       </BrowserRouter>
     </AuthProvider>
   );
