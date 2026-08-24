@@ -52,6 +52,13 @@ def cache_get(key: str):
         return None
 
 
+def redis_healthy() -> bool:
+    """True only if REDIS_URL is set AND the ping succeeds — used by /health
+    to report actual reachability, as opposed to cache_get/cache_set which
+    deliberately hide a down Redis behind a plain cache miss."""
+    return _get_client() is not None
+
+
 def cache_set(key: str, value, ttl_seconds: int):
     client = _get_client()
     if client is None:
