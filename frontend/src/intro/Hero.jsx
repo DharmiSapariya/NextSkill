@@ -103,7 +103,10 @@ export default function Hero() {
             fontWeight={600}
             renderChar={renderNextSkillChar}
             className="font-display [letter-spacing:0.03em]"
-            style={overridePx ? { "--fold-text-font-size": `${overridePx}px` } : undefined}
+            style={{
+              whiteSpace: "nowrap",
+              ...(overridePx ? { "--fold-text-font-size": `${overridePx}px` } : null),
+            }}
           />
         </span>
       </div>

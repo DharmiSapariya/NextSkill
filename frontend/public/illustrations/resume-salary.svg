@@ -87,7 +87,7 @@
                         </g>
                     </g>
                     <g transform="matrix(0.737584,0,0.134256,0.796939,280.009,163.781)">
-                        <rect x="1242.49" y="686.84" width="497.646" height="305.717" style="fill:#F8F4F0;"/>
+                        <rect x="1242.49" y="686.84" width="497.646" height="305.717" style="fill:#CFDCFF;"/>
                     </g>
                 </g>
                 <g>
@@ -317,13 +317,13 @@
             </g>
             <g id="JAR" transform="matrix(1,0,0,1,3.16784,-1.5972)">
                 <g id="JAR1" serif:id="JAR">
-                    <path d="M1081.12,833.887L1074.04,833.887C1070.1,833.887 1066.9,830.687 1066.9,826.747C1066.9,822.806 1070.1,819.607 1074.04,819.607L1251.62,819.607C1255.57,819.607 1258.76,822.806 1258.76,826.747C1258.76,830.687 1255.57,833.887 1251.62,833.887L1248.32,833.887C1251.91,835.149 1255.22,837.208 1257.96,839.955C1262.78,844.768 1265.48,851.296 1265.48,858.102L1265.48,1047.76L1063.95,1047.76C1063.95,1047.76 1063.95,915.204 1063.95,858.102C1063.95,851.296 1066.66,844.768 1071.47,839.955C1074.22,837.208 1077.52,835.149 1081.12,833.887Z" style="fill:#F8F4F0;"/>
-                    <path d="M1248.32,833.887C1250.88,834.785 1253.29,836.089 1255.46,837.756L1068.53,843.476C1069.4,842.225 1070.38,841.046 1071.47,839.955C1074.22,837.208 1077.52,835.149 1081.12,833.887L1248.32,833.887Z" style="fill:#F8F4F0;"/>
+                    <path d="M1081.12,833.887L1074.04,833.887C1070.1,833.887 1066.9,830.687 1066.9,826.747C1066.9,822.806 1070.1,819.607 1074.04,819.607L1251.62,819.607C1255.57,819.607 1258.76,822.806 1258.76,826.747C1258.76,830.687 1255.57,833.887 1251.62,833.887L1248.32,833.887C1251.91,835.149 1255.22,837.208 1257.96,839.955C1262.78,844.768 1265.48,851.296 1265.48,858.102L1265.48,1047.76L1063.95,1047.76C1063.95,1047.76 1063.95,915.204 1063.95,858.102C1063.95,851.296 1066.66,844.768 1071.47,839.955C1074.22,837.208 1077.52,835.149 1081.12,833.887Z" style="fill:#CFDCFF;"/>
+                    <path d="M1248.32,833.887C1250.88,834.785 1253.29,836.089 1255.46,837.756L1068.53,843.476C1069.4,842.225 1070.38,841.046 1071.47,839.955C1074.22,837.208 1077.52,835.149 1081.12,833.887L1248.32,833.887Z" style="fill:#CFDCFF;"/>
                 </g>
                 <g id="BILLS">
                     <g>
                         <g transform="matrix(0.910266,-0.275905,0.29456,0.971812,-183.502,326.179)">
-                            <rect x="1090.3" y="886.251" width="71.37" height="115.885" style="fill:#F8F4F0;"/>
+                            <rect x="1090.3" y="886.251" width="71.37" height="115.885" style="fill:#CFDCFF;"/>
                         </g>
                         <g>
                             <g transform="matrix(1,0,0,1,4.58908,-9.29654)">
@@ -337,7 +337,7 @@
                     </g>
                     <g transform="matrix(0.849564,0.527485,-0.527485,0.849564,755.422,-402.502)">
                         <g transform="matrix(0.910266,-0.275905,0.29456,0.971812,-183.502,326.179)">
-                            <rect x="1090.3" y="886.251" width="71.37" height="115.885" style="fill:#F8F4F0;"/>
+                            <rect x="1090.3" y="886.251" width="71.37" height="115.885" style="fill:#CFDCFF;"/>
                         </g>
                         <g>
                             <g transform="matrix(1,0,0,1,4.58908,-9.29654)">
@@ -410,7 +410,7 @@
                 </g>
             </g>
             <g id="PAPER-BILL" serif:id="PAPER BILL" transform="matrix(1,0,0,1,5.21737,-5.81481)">
-                <path d="M1173.41,1048.87L1056.07,1253.2L1007.81,1253.2C1007.81,1253.2 992.981,1284.88 1015.45,1296.48L1236.8,1296.48C1237.03,1296.48 1237.25,1296.5 1237.48,1296.53C1241.89,1296.85 1267.08,1296.13 1287.01,1244.49C1319.39,1160.61 1352.21,1112.22 1385.36,1048.87L1173.41,1048.87Z" style="fill:#F8F4F0;"/>
+                <path d="M1173.41,1048.87L1056.07,1253.2L1007.81,1253.2C1007.81,1253.2 992.981,1284.88 1015.45,1296.48L1236.8,1296.48C1237.03,1296.48 1237.25,1296.5 1237.48,1296.53C1241.89,1296.85 1267.08,1296.13 1287.01,1244.49C1319.39,1160.61 1352.21,1112.22 1385.36,1048.87L1173.41,1048.87Z" style="fill:#CFDCFF;"/>
                 <g transform="matrix(0.93449,0.13298,-0.313392,0.955354,442.97,-95.9341)">
                     <ellipse cx="1144.86" cy="1200.21" rx="37.235" ry="35.603" style="fill:white;"/>
                 </g>
@@ -458,8 +458,8 @@
         </g>
     </g>
     <defs>
-        <linearGradient id="_Linear1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(986.951,-581.965,581.965,986.951,884.165,1404.93)"><stop offset="0" style="stop-color:#CFDCFF;stop-opacity:1"/><stop offset="0.42" style="stop-color:#CFDCFF;stop-opacity:1"/><stop offset="1" style="stop-color:#F8F4F0;stop-opacity:1"/></linearGradient>
-        <linearGradient id="_Linear2" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-487.042,610.288,-610.288,-487.042,559.796,705.848)"><stop offset="0" style="stop-color:#CFDCFF;stop-opacity:1"/><stop offset="0.47" style="stop-color:#CFDCFF;stop-opacity:1"/><stop offset="1" style="stop-color:#F8F4F0;stop-opacity:1"/></linearGradient>
+        <linearGradient id="_Linear1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(986.951,-581.965,581.965,986.951,884.165,1404.93)"><stop offset="0" style="stop-color:#CFDCFF;stop-opacity:1"/><stop offset="0.42" style="stop-color:#CFDCFF;stop-opacity:1"/><stop offset="1" style="stop-color:#CFDCFF;stop-opacity:1"/></linearGradient>
+        <linearGradient id="_Linear2" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-487.042,610.288,-610.288,-487.042,559.796,705.848)"><stop offset="0" style="stop-color:#CFDCFF;stop-opacity:1"/><stop offset="0.47" style="stop-color:#CFDCFF;stop-opacity:1"/><stop offset="1" style="stop-color:#CFDCFF;stop-opacity:1"/></linearGradient>
         <linearGradient id="_Linear3" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(300.786,292.904,-292.904,300.786,1992.73,834.741)"><stop offset="0" style="stop-color:#EFF87A;stop-opacity:1"/><stop offset="1" style="stop-color:#EFF87A;stop-opacity:1"/></linearGradient>
         <linearGradient id="_Linear4" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-490.582,-330.667,330.667,-490.582,2198.49,1382.31)"><stop offset="0" style="stop-color:#EFF87A;stop-opacity:1"/><stop offset="0.48" style="stop-color:#EFF87A;stop-opacity:1"/><stop offset="1" style="stop-color:#EFF87A;stop-opacity:1"/></linearGradient>
     </defs>

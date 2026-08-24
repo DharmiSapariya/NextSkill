@@ -19,7 +19,11 @@ export default {
         danger: "#B42318",
       },
       fontFamily: {
+        // display: the hero wordmark and the fold-effect headings — kept
+        // on the original stylized face. sans: everything else (body
+        // copy, nav, labels) — switched to a more natural, readable face.
         display: ["Aalto Display", "system-ui", "sans-serif"],
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
       },
     },
   },
