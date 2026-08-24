@@ -35,21 +35,11 @@ export default function Hero() {
   }, []);
 
   return (
-    <section className="relative flex h-screen w-full flex-col justify-between overflow-hidden bg-forest py-6 sm:py-8">
-      {/* top row: tiny wordmark label (left) + entry index (right) — the
-          only rows with side padding, so the hero word below is free to
-          run almost edge-to-edge, the way a wordmark on its own poster
-          would, rather than sitting inside a centered card. */}
-      <div className="flex items-start justify-between px-6 sm:px-10 font-sans text-[10px] uppercase tracking-[0.25em] text-cream/70">
-        <motion.div animate={{ opacity: labelOn ? 1 : 0 }} transition={{ duration: 0.4 }}>
-          NextSkill
-          <br />
-          Career Intelligence
-        </motion.div>
-        <motion.div animate={{ opacity: labelOn ? 1 : 0 }} transition={{ duration: 0.4 }}>
-          Entry / 01
-        </motion.div>
-      </div>
+    <section className="relative flex h-screen w-full flex-col justify-end overflow-hidden bg-forest pb-6 sm:pb-8">
+      {/* No top-row label here any more — Layout's real nav now overlays
+          this hero directly (see useScrolledPastHero there), so a second
+          "NextSkill" wordmark in the same corner was just clutter on top
+          of clutter. */}
 
       {/* hero: NEXTSKILL. px-2/sm:px-4 here is a hairline safety margin
           (glyph antialiasing), not a card inset — the word itself is sized
