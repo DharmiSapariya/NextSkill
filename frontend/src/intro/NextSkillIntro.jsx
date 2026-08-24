@@ -17,13 +17,13 @@ const CONCEPT_WORDS = ["EVIDENCE", "SIGNALS"];
 const TIMELINE = {
   labelOn: 100,
   wordmarkEnter: 250,
-  wordmarkExit: 1900,
-  wordmarkGone: 2450, // after wordmarkExit's own fold-out finishes, so it stops taking up layout space
-  concept1: 2550,
-  concept2: 3050,
-  conceptOff: 3550,
-  layerExit: 3900,
-  complete: 4400,
+  wordmarkExit: 3700, // long hold after the (now slower) letter-by-letter entrance settles — "let it be there"
+  wordmarkGone: 4250, // after wordmarkExit's own fold-out finishes, so it stops taking up layout space
+  concept1: 4350,
+  concept2: 4850,
+  conceptOff: 5350,
+  layerExit: 5650,
+  complete: 6650, // gives the slow fade-out (see the closing motion.div) time to actually finish
 };
 
 export default function NextSkillIntro({ onComplete }) {
@@ -75,8 +75,9 @@ export default function NextSkillIntro({ onComplete }) {
   return (
     <motion.div
       className="fixed inset-0 z-50 flex flex-col justify-between overflow-hidden bg-forest py-6 sm:py-8"
-      animate={layerExiting ? { y: "-100%" } : { y: 0 }}
-      transition={{ duration: reduceMotion ? 0.4 : 0.6, ease: [0.76, 0, 0.24, 1] }}
+      animate={{ opacity: layerExiting ? 0 : 1 }}
+      transition={{ duration: reduceMotion ? 0.5 : 1.2, ease: "easeInOut" }}
+      style={{ pointerEvents: layerExiting ? "none" : "auto" }}
     >
       {/* top row: tiny wordmark label (left) + entry index (right) — the
           only rows with side padding, so the hero word below is free to

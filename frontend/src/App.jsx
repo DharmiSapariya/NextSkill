@@ -16,18 +16,12 @@ import MyAccount from "./pages/MyAccount";
 import Admin from "./pages/Admin";
 import NextSkillIntro from "./intro/NextSkillIntro";
 
-const INTRO_SEEN_KEY = "nextskill_intro_seen";
-
 export default function App() {
-  // The intro is an entry experience, not a per-navigation transition — it
-  // shows once per browser session (sessionStorage, not localStorage: a
-  // fresh tab/session gets it again, a route change within the same
-  // session never does). Clear sessionStorage to re-trigger it while
-  // iterating on the animation itself.
-  const [showIntro, setShowIntro] = useState(() => !sessionStorage.getItem(INTRO_SEEN_KEY));
+  // Plays on every full page load/reload, by design — it's the entry
+  // experience, not a one-time first-visit gate.
+  const [showIntro, setShowIntro] = useState(true);
 
   function handleIntroComplete() {
-    sessionStorage.setItem(INTRO_SEEN_KEY, "1");
     setShowIntro(false);
   }
 

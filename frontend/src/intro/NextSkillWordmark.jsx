@@ -23,7 +23,7 @@ const SPECIAL = { 0: "n", 4: "s" }; // N in NEXT, S in SKILL
 // arriving again, it's confidently reasserting itself, so it plays as a
 // quick, tight snap rather than a repeat of the intro.
 const PROFILES = {
-  enter: { duration: 0.65, stepIn: 0.045, exitDuration: 0.36, stepOut: 0.02 },
+  enter: { duration: 1.15, stepIn: 0.1, exitDuration: 0.36, stepOut: 0.02 },
   return: { duration: 0.4, stepIn: 0.02, exitDuration: 0.26, stepOut: 0.012 },
 };
 
@@ -35,7 +35,7 @@ function buildVariants(profile, special) {
       rotateX: -rotate,
       rotateY: special ? -18 : 0,
       opacity: 0,
-      y: "0.18em",
+      y: "0.55em",
       scale: special ? 0.92 : 1,
     },
     visible: (i) => ({
@@ -57,21 +57,21 @@ function buildVariants(profile, special) {
   };
 }
 
-// Cream fill plus a thin lime outline traced along the glyph's own edge —
-// a duotone rim, not a separate shape laid on top. (An absolutely
-// positioned swash was tried first, sized and placed by percentage/em
-// guesses against the letter's box. It never lined up the same way twice:
-// different browsers and font hinting size that box differently than the
-// glyph's visible ink, so the accent either floated off to one side or
-// hung below the baseline instead of crossing the counter. Text-stroke has
-// no separate box to get wrong — the browser draws it exactly on the
-// glyph's actual outline, at any size, every time.) Falls back to plain
-// cream in the rare browser without text-stroke support.
+// Hollow — lime outline only, no fill — traced along the glyph's own edge,
+// same technique as SpecialS below. (An absolutely positioned swash was
+// tried first, sized and placed by percentage/em guesses against the
+// letter's box. It never lined up the same way twice: different browsers
+// and font hinting size that box differently than the glyph's visible ink,
+// so the accent either floated off to one side or hung below the baseline
+// instead of crossing the counter. Text-stroke has no separate box to get
+// wrong — the browser draws it exactly on the glyph's actual outline, at
+// any size, every time.) Falls back to a solid lime fill in the rare
+// browser without text-stroke support, rather than risking an invisible glyph.
 function SpecialN() {
   return (
     <span
-      className="inline-block text-cream"
-      style={{ WebkitTextStroke: "0.035em var(--color-accent)", paintOrder: "stroke fill" }}
+      className="inline-block text-lime"
+      style={{ WebkitTextStroke: "0.035em var(--color-accent)", color: "transparent" }}
     >
       N
     </span>
