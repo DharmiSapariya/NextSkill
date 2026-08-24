@@ -1003,6 +1003,35 @@ def test_list_shared_reports_returns_only_the_current_users_own():
     assert after_revoke.json()["results"] == []
 
 
+def test_list_shared_reports_is_paginated():
+    from api import limiter
+
+    limiter.reset()
+    email = f"paginate-shared-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    for role in ["backend developer", "frontend developer", "data analyst"]:
+        history_id = _make_history_entry(headers, role)
+        client.post(f"/auth/me/history/{history_id}/share", headers=headers)
+
+    page = client.get("/auth/me/shared-reports?limit=2", headers=headers)
+    assert page.status_code == 200
+    data = page.json()
+    assert data["total"] == 3
+    assert data["limit"] == 2
+    assert len(data["results"]) == 2
+
+    next_page = client.get("/auth/me/shared-reports?limit=2&offset=2", headers=headers)
+    assert len(next_page.json()["results"]) == 1
+    limiter.reset()
+
+
+def test_list_shared_reports_rejects_non_positive_limit(auth_headers):
+    assert client.get("/auth/me/shared-reports?limit=0", headers=auth_headers).status_code == 422
+    assert client.get("/auth/me/shared-reports?limit=-1", headers=auth_headers).status_code == 422
+
+
 def test_list_shared_reports_does_not_leak_other_users_reports():
     from api import limiter
 

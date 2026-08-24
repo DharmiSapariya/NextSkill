@@ -363,19 +363,27 @@ def get_shared_report(token: str):
 
 
 @app.get("/auth/me/shared-reports")
-def my_shared_reports(current_user: User = Depends(get_current_user)):
+def my_shared_reports(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+):
     """Lists the current user's own published links — without this, the only
     place a token was ever surfaced was the create response right after
     POST /auth/me/history/{id}/share. A client that didn't hang onto that
     response (a page refresh, a different device, a new session) had no way
-    to find out what it had published, let alone revoke it."""
-    shared = (
-        session.query(SharedReport)
-        .filter_by(user_id=current_user.id)
-        .order_by(SharedReport.created_at.desc())
-        .all()
-    )
+    to find out what it had published, let alone revoke it.
+
+    Paginated like every other list endpoint in the API (/jobs, /auth/me/history,
+    /skills, /companies, /admin/users) — this was the one that had been
+    left returning everything unbounded."""
+    query = session.query(SharedReport).filter_by(user_id=current_user.id)
+    total = query.count()
+    shared = query.order_by(SharedReport.created_at.desc()).offset(offset).limit(limit).all()
     return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
         "results": [
             {
                 "token": s.token,
