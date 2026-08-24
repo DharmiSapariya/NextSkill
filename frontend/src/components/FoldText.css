@@ -1,0 +1,49 @@
+.fold-text {
+  display: inline-block;
+  font-size: var(--fold-text-font-size, 80px);
+  font-weight: var(--fold-text-font-weight, 800);
+  color: var(--fold-text-color, inherit);
+  line-height: 1;
+}
+
+.fold-text-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.fold-text-visual {
+  display: inline-block;
+}
+
+.fold-text-line {
+  display: block;
+}
+
+.fold-text-segment {
+  display: inline-block;
+  perspective: var(--fold-perspective, 700px);
+  vertical-align: top;
+}
+
+.fold-text-piece {
+  display: inline-block;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  /* Darkens toward the hinge as --fold-crease rises during the fold-in,
+     then settles to full brightness at 0 — a cheap stand-in for the shadow
+     a real paper crease would cast, without an extra shadow DOM node. */
+  filter: brightness(calc(1 - var(--fold-crease, 0) * 0.45));
+}
+
+.fold-text-whitespace {
+  display: inline-block;
+  white-space: pre;
+}
