@@ -330,6 +330,50 @@ def test_admin_update_user_grants_admin_without_touching_tier():
     assert stats.status_code == 200
 
 
+def test_admin_delete_user_requires_auth():
+    response = client.request("DELETE", "/admin/users/1")
+    assert response.status_code == 401
+
+
+def test_admin_delete_user_rejects_non_admin_user(auth_headers):
+    response = client.request("DELETE", "/admin/users/1", headers=auth_headers)
+    assert response.status_code == 403
+
+
+def test_admin_delete_user_not_found():
+    admin_headers = _make_admin_headers()
+    response = client.request("DELETE", "/admin/users/999999999", headers=admin_headers)
+    assert response.status_code == 404
+
+
+def test_admin_delete_user_removes_account_and_cascades():
+    from api import limiter
+
+    limiter.reset()  # this test signs up 2 users — same shared-counter caveat as the rate-limit tests
+    admin_headers = _make_admin_headers()
+    target_email = f"admin-deleted-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": target_email, "password": "testpassword123"})
+    target_headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+    target_id = client.get("/auth/me", headers=target_headers).json()["id"]
+
+    history_id = _make_history_entry(target_headers, "technical writer")
+    token = client.post(f"/auth/me/history/{history_id}/share", headers=target_headers).json()["token"]
+
+    response = client.request("DELETE", f"/admin/users/{target_id}", headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json() == {"status": "user deleted", "id": target_id}
+
+    # No FK violation, and the deleted user's own token stops resolving.
+    assert client.get("/auth/me", headers=target_headers).status_code == 401
+    # Their shared report is gone too, not orphaned.
+    assert client.get(f"/reports/{token}").status_code == 404
+
+    limiter.reset()
+    resignup = client.post("/auth/signup", json={"email": target_email, "password": "anotherpassword123"})
+    assert resignup.status_code == 200  # the email is free again
+    limiter.reset()
+
+
 def test_trend_for_known_skill():
     response = client.get("/trends/Python")
     assert response.status_code == 200

@@ -709,6 +709,25 @@ def admin_update_user(
     }
 
 
+@app.delete("/admin/users/{user_id}")
+def admin_delete_user(user_id: int, current_user: User = Depends(get_current_admin_user)):
+    """The "moderation" half of admin_stats' acknowledged gap — DELETE
+    /auth/me already lets a user remove their own account (with a password
+    check, since it's self-service); this is the admin-initiated equivalent
+    for a problem account, authority instead of a password. Same explicit
+    cascade as self-deletion: no ON DELETE CASCADE on these foreign keys."""
+    target = session.query(User).filter_by(id=user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail=f"No user found with id {user_id}")
+
+    session.query(SharedReport).filter_by(user_id=user_id).delete()
+    session.query(RecommendationHistory).filter_by(user_id=user_id).delete()
+    session.delete(target)
+    session.commit()
+    logger.info("User deleted by admin: admin id=%s target id=%s", current_user.id, user_id)
+    return {"status": "user deleted", "id": user_id}
+
+
 # Fixed whitelist of roles used to define the comparison universe for trend
 # calculations. This exists specifically to control for the fact that our
 # Adzuna search coverage expanded from a small initial set of roles to 21
