@@ -171,6 +171,20 @@ def login(request: Request, body: LoginRequest):
     return TokenResponse(access_token=create_access_token(user.id))
 
 
+@app.post("/auth/refresh", response_model=TokenResponse)
+def refresh_token(current_user: User = Depends(get_current_user)):
+    """Issues a new token for a still-valid session, so a client can keep a
+    user signed in past JWT_EXPIRE_MINUTES without forcing a full re-login —
+    poll this periodically while the current token is still valid.
+
+    Not a true refresh-token flow: get_current_user rejects an already-
+    expired token outright (jwt.decode raises on expiry), so this can only
+    extend a session that hasn't lapsed yet, not recover one that already
+    has. A separate longer-lived refresh-token type would be needed for
+    that; out of scope for the stateless-JWT setup this API already has."""
+    return TokenResponse(access_token=create_access_token(current_user.id))
+
+
 @app.get("/auth/me")
 def get_me(current_user: User = Depends(get_current_user)):
     return {

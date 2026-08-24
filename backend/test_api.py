@@ -106,6 +106,30 @@ def test_signup_is_rate_limited():
     limiter.reset()
 
 
+def test_refresh_requires_auth():
+    response = client.post("/auth/refresh")
+    assert response.status_code == 401
+
+
+def test_refresh_issues_a_working_token():
+    email = f"refresh-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    response = client.post("/auth/refresh", headers=headers)
+    assert response.status_code == 200
+    new_token = response.json()["access_token"]
+
+    me = client.get("/auth/me", headers={"Authorization": f"Bearer {new_token}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == email
+
+
+def test_refresh_rejects_expired_or_garbage_token():
+    response = client.post("/auth/refresh", headers={"Authorization": "Bearer not-a-real-token"})
+    assert response.status_code == 401
+
+
 def test_me_requires_auth():
     response = client.get("/auth/me")
     assert response.status_code == 401  # no Authorization header at all
