@@ -74,12 +74,15 @@ export default function NextSkillIntro({ onComplete }) {
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col justify-between overflow-hidden bg-forest px-6 py-6 sm:px-10 sm:py-8"
+      className="fixed inset-0 z-50 flex flex-col justify-between overflow-hidden bg-forest py-6 sm:py-8"
       animate={layerExiting ? { y: "-100%" } : { y: 0 }}
       transition={{ duration: reduceMotion ? 0.4 : 0.6, ease: [0.76, 0, 0.24, 1] }}
     >
-      {/* top row: tiny wordmark label (left) + entry index (right) */}
-      <div className="flex items-start justify-between font-sans text-[10px] uppercase tracking-[0.25em] text-cream/70">
+      {/* top row: tiny wordmark label (left) + entry index (right) — the
+          only rows with side padding, so the hero word below is free to
+          run almost edge-to-edge, the way a wordmark on its own poster
+          would, rather than sitting inside a centered card. */}
+      <div className="flex items-start justify-between px-6 sm:px-10 font-sans text-[10px] uppercase tracking-[0.25em] text-cream/70">
         <motion.div
           animate={{ opacity: labelOn ? 1 : 0 }}
           transition={{ duration: 0.4 }}
@@ -93,30 +96,36 @@ export default function NextSkillIntro({ onComplete }) {
         </motion.div>
       </div>
 
-      {/* hero: NEXTSKILL, then a couple of concept words, same fold mechanic */}
-      <div className="flex flex-1 flex-col items-center justify-center text-center">
+      {/* hero: NEXTSKILL, then a couple of concept words, same fold mechanic.
+          px-2/sm:px-4 here is a hairline safety margin (glyph antialiasing),
+          not a card inset — the word itself is sized to nearly fill this
+          row; NextSkillWordmark's own fit-to-width guard (see that file)
+          is what actually guarantees it never wraps at any viewport. */}
+      <div className="flex flex-1 flex-col items-center justify-center px-2 text-center sm:px-4">
         {wordmarkVisible && (
           <NextSkillWordmark
             phase={wordmarkPhase}
             reduceMotion={reduceMotion}
-            className="font-display text-cream [font-size:clamp(3.25rem,13vw,10.5rem)] leading-none tracking-tight"
+            className="font-display text-cream [font-size:clamp(3.5rem,21vw,19rem)] leading-none [letter-spacing:0.03em]"
           />
         )}
         {!wordmarkVisible && (
           <div className="[font-size:clamp(1.1rem,3.2vw,2.25rem)]">
-            {conceptWord && (
-              <FoldWord
-                word={conceptWord}
-                reduceMotion={reduceMotion}
-                className="font-display text-lime tracking-wide"
-              />
-            )}
+            {/* Always rendered (word may be null) rather than conditionally
+                mounted — see FoldWord for why: it's what lets the very
+                last concept word ("SIGNALS") fold away instead of just
+                vanishing when conceptWord flips back to null. */}
+            <FoldWord
+              word={conceptWord}
+              reduceMotion={reduceMotion}
+              className="font-display text-lime tracking-wide"
+            />
           </div>
         )}
       </div>
 
       {/* bottom row: tiny status metadata */}
-      <div className="flex items-end justify-between font-sans text-[10px] uppercase tracking-[0.25em] text-cream/60">
+      <div className="flex items-end justify-between px-6 sm:px-10 font-sans text-[10px] uppercase tracking-[0.25em] text-cream/60">
         <motion.div animate={{ opacity: labelOn ? 1 : 0 }} transition={{ duration: 0.4 }}>
           Building your skill graph
         </motion.div>
