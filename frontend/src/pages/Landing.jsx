@@ -1,19 +1,29 @@
 import Hero from "../intro/Hero";
+import ScrollCursor from "../landing/ScrollCursor";
+import IntroStatement from "../landing/IntroStatement";
+import ScrollStroke from "../landing/ScrollStroke";
+import FeatureGrid from "../landing/FeatureGrid";
+import StatsBand from "../landing/StatsBand";
+import Testimonials from "../landing/Testimonials";
+import CTASection from "../landing/CTASection";
+import Footer from "../landing/Footer";
 
-// Landing page — Hero plays the NEXTSKILL entrance once on mount, then
-// stays as the page's own top section; scrolling past it reveals the rest
-// of the page below (still a placeholder — first up for a real design
-// pass beyond the hero).
+// The full landing page. Hero plays the NEXTSKILL entrance once on
+// mount and then sits in normal document flow; everything below it is
+// plain scroll-triggered content — nothing here re-runs or resets when
+// scrolling back up.
 export default function Landing() {
   return (
     <>
+      <ScrollCursor />
       <Hero />
-      <section className="mx-auto max-w-7xl px-6 py-24">
-        <h1 className="text-4xl font-bold text-charcoal">NextSkill</h1>
-        <p className="mt-4 max-w-xl text-charcoal/70">
-          Market-aware skill-gap recommendations, built from real job posting data.
-        </p>
-      </section>
+      <IntroStatement />
+      <ScrollStroke />
+      <FeatureGrid />
+      <StatsBand />
+      <Testimonials />
+      <CTASection />
+      <Footer />
     </>
   );
 }

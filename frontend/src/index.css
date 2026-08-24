@@ -34,3 +34,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
   background: var(--color-background);
 }
+
+/* Landing page only — ScrollCursor toggles this on <html> while mounted
+   and removes it on unmount, so every other route keeps the system
+   cursor untouched. */
+html.custom-cursor-active,
+html.custom-cursor-active * {
+  cursor: none !important;
+}
+
+@keyframes badge-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.badge-spin {
+  animation: badge-spin 18s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge-spin {
+    animation: none;
+  }
+}
