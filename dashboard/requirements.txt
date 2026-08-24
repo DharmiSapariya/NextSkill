@@ -1,3 +1,5 @@
 streamlit>=1.36
 requests>=2.32
 pandas>=2.2
+plotly>=5.24  # Career Paths / Skill Network force-directed graph rendering
+networkx>=3.3  # spring layout for the same graphs — pure Python, no system Graphviz binary needed
