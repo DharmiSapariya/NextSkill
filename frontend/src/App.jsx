@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./lib/AuthContext";
 import RequireAuth from "./lib/RequireAuth";
@@ -14,22 +13,16 @@ import Jobs from "./pages/Jobs";
 import Companies from "./pages/Companies";
 import MyAccount from "./pages/MyAccount";
 import Admin from "./pages/Admin";
-import NextSkillIntro from "./intro/NextSkillIntro";
 
 export default function App() {
-  // Plays on every full page load/reload, by design — it's the entry
-  // experience, not a one-time first-visit gate.
-  const [showIntro, setShowIntro] = useState(true);
-
-  function handleIntroComplete() {
-    setShowIntro(false);
-  }
-
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<Layout />}>
+            {/* The NEXTSKILL entrance now lives inside Landing itself (as
+                its hero section, see pages/Landing.jsx) rather than as a
+                full-screen gate wrapping every route. */}
             <Route index element={<Landing />} />
             <Route path="login" element={<Login />} />
             <Route path="recommend" element={<Recommend />} />
@@ -57,9 +50,6 @@ export default function App() {
             />
           </Route>
         </Routes>
-        {/* Overlay, not a swap — the app is already mounted underneath so
-            the intro's exit is a literal reveal, not a page transition. */}
-        {showIntro && <NextSkillIntro onComplete={handleIntroComplete} />}
       </BrowserRouter>
     </AuthProvider>
   );

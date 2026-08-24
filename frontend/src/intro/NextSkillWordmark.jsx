@@ -19,7 +19,7 @@ const SPECIAL = { 0: "n", 4: "s" }; // N in NEXT, S in SKILL
 
 // Two timing profiles, same fold mechanic, different tempo. "enter" is the
 // first, grand arrival. "return" is the brief final-identity beat right
-// before hand-off (see NextSkillIntro) — narratively the brand isn't
+// before hand-off (see Hero) — narratively the brand isn't
 // arriving again, it's confidently reasserting itself, so it plays as a
 // quick, tight snap rather than a repeat of the intro.
 const PROFILES = {
@@ -99,7 +99,7 @@ function SpecialS() {
 }
 
 // NEXTSKILL must never wrap to a second line — that requirement outranks
-// the caller's font-size clamp. The clamp (set by NextSkillIntro, in vw
+// the caller's font-size clamp. The clamp (set by Hero, in vw
 // units) picks an *ideal* size for a given viewport; this hook is the
 // backstop that actually guarantees a single line, by measuring the
 // rendered word against the width it has to live in and, only if it
