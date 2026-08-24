@@ -840,6 +840,56 @@ def test_revoke_requires_auth():
     assert response.status_code == 401
 
 
+def test_list_shared_reports_requires_auth():
+    response = client.get("/auth/me/shared-reports")
+    assert response.status_code == 401
+
+
+def test_list_shared_reports_returns_only_the_current_users_own():
+    email = f"list-shared-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+    headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+
+    empty_response = client.get("/auth/me/shared-reports", headers=headers)
+    assert empty_response.status_code == 200
+    assert empty_response.json()["results"] == []
+
+    history_id = _make_history_entry(headers, "mobile developer")
+    token = client.post(f"/auth/me/history/{history_id}/share", headers=headers).json()["token"]
+
+    response = client.get("/auth/me/shared-reports", headers=headers)
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert len(results) == 1
+    assert results[0]["token"] == token
+    assert results[0]["resolved_role"] == "mobile developer"
+    assert results[0]["share_path"] == f"/reports/{token}"
+
+    # Revoking removes it from the list, not just from direct token lookup.
+    client.delete(f"/auth/me/history/shared/{token}", headers=headers)
+    after_revoke = client.get("/auth/me/shared-reports", headers=headers)
+    assert after_revoke.json()["results"] == []
+
+
+def test_list_shared_reports_does_not_leak_other_users_reports():
+    from api import limiter
+
+    limiter.reset()  # this test signs up 2 users — same shared-counter caveat as the rate-limit tests
+    owner_email = f"list-owner-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    owner_signup = client.post("/auth/signup", json={"email": owner_email, "password": "testpassword123"})
+    owner_headers = {"Authorization": f"Bearer {owner_signup.json()['access_token']}"}
+    _make_history_entry(owner_headers, "product manager")
+    history_id = client.get("/auth/me/history?target_role=product manager&limit=1", headers=owner_headers).json()["results"][0]["id"]
+    client.post(f"/auth/me/history/{history_id}/share", headers=owner_headers)
+
+    other_email = f"list-other-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    other_signup = client.post("/auth/signup", json={"email": other_email, "password": "testpassword123"})
+    other_headers = {"Authorization": f"Bearer {other_signup.json()['access_token']}"}
+
+    response = client.get("/auth/me/shared-reports", headers=other_headers)
+    assert response.json()["results"] == []
+
+
 def test_non_owner_cannot_revoke_someone_elses_shared_report():
     from api import limiter
 

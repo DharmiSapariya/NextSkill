@@ -266,6 +266,33 @@ def get_shared_report(token: str):
     }
 
 
+@app.get("/auth/me/shared-reports")
+def my_shared_reports(current_user: User = Depends(get_current_user)):
+    """Lists the current user's own published links — without this, the only
+    place a token was ever surfaced was the create response right after
+    POST /auth/me/history/{id}/share. A client that didn't hang onto that
+    response (a page refresh, a different device, a new session) had no way
+    to find out what it had published, let alone revoke it."""
+    shared = (
+        session.query(SharedReport)
+        .filter_by(user_id=current_user.id)
+        .order_by(SharedReport.created_at.desc())
+        .all()
+    )
+    return {
+        "results": [
+            {
+                "token": s.token,
+                "share_path": f"/reports/{s.token}",
+                "target_role": s.target_role,
+                "resolved_role": s.resolved_role,
+                "shared_at": s.created_at.isoformat(),
+            }
+            for s in shared
+        ],
+    }
+
+
 @app.delete("/auth/me/history/shared/{token}")
 def revoke_shared_report(token: str, current_user: User = Depends(get_current_user)):
     """Revokes a previously published link — owner-only, so a shared report
