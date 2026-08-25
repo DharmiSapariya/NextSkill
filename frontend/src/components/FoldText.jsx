@@ -27,7 +27,7 @@ const renderWhitespace = (value, key) =>
     if (!part) return null;
     return (
       <span className="fold-text-whitespace" key={`${key}-space-${index}`}>
-        {part.replace(/ /g, " ")}
+        {part.replace(/ /g, " ")}
       </span>
     );
   });
@@ -48,6 +48,7 @@ export default function FoldText({
   className = "",
   style = {},
   renderChar,
+  renderWord,
 }) {
   const rootRef = useRef(null);
   const timelineRef = useRef(null);
@@ -58,8 +59,13 @@ export default function FoldText({
   const segments = useMemo(() => {
     let segmentIndex = 0;
 
-    const renderSegment = (content, key, split = splitBy, charIndex) => {
+    let wordCounter = 0;
+
+    const renderSegment = (content, key, split = splitBy, charIndex, wordIndex) => {
       segmentIndex += 1;
+      let inner = content || " ";
+      if (renderChar && charIndex !== undefined) inner = renderChar(content, charIndex);
+      else if (renderWord && wordIndex !== undefined) inner = renderWord(content, wordIndex);
       return (
         <span
           className="fold-text-segment"
@@ -72,7 +78,7 @@ export default function FoldText({
             data-fold-hinge={hinge}
             style={{ transformOrigin: hingeConfig.origin, "--fold-crease": 0 }}
           >
-            {renderChar && charIndex !== undefined ? renderChar(content, charIndex) : content || " "}
+            {inner}
           </span>
         </span>
       );
@@ -81,7 +87,7 @@ export default function FoldText({
     if (splitBy === "line") {
       return text.split("\n").map((line, index) => (
         <span className="fold-text-line" key={`line-${index}`}>
-          {renderSegment(line || " ", `segment-line-${index}`, "line")}
+          {renderSegment(line || " ", `segment-line-${index}`, "line")}
         </span>
       ));
     }
@@ -90,15 +96,17 @@ export default function FoldText({
       return text.split(/(\s+)/).flatMap((part, index) => {
         if (!part) return [];
         if (/^\s+$/.test(part)) return renderWhitespace(part, `ws-${index}`);
-        return renderSegment(part, `segment-word-${segmentIndex}`);
+        const wordIndex = wordCounter;
+        wordCounter += 1;
+        return renderSegment(part, `segment-word-${segmentIndex}`, "word", undefined, wordIndex);
       });
     }
 
     return Array.from(text).map((char, index) => {
       if (char === "\n") return <br key={`br-${index}`} />;
-      return renderSegment(char === " " ? " " : char, `segment-char-${index}`, "char", index);
+      return renderSegment(char === " " ? " " : char, `segment-char-${index}`, "char", index);
     });
-  }, [text, splitBy, hinge, hingeConfig.origin, safePerspective, renderChar]);
+  }, [text, splitBy, hinge, hingeConfig.origin, safePerspective, renderChar, renderWord]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -146,7 +154,12 @@ export default function FoldText({
     let scrollTrigger;
     let hoverHandler;
 
-    if (trigger === "hover") {
+    if (trigger === "static") {
+      // Already-settled, no animation at all — for an instance that's
+      // meant to just *be* the resting state (e.g. the small logo a
+      // bigger one has already morphed into), not play its own reveal.
+      gsap.set(pieces, { opacity: 1, rotateX: 0, rotateY: 0, "--fold-crease": 0, transformOrigin: hingeConfig.origin });
+    } else if (trigger === "hover") {
       gsap.set(pieces, { opacity: 1, rotateX: 0, rotateY: 0, "--fold-crease": 0, transformOrigin: hingeConfig.origin });
       hoverHandler = () => play(false);
       root.addEventListener("mouseenter", hoverHandler);
