@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Menu, X } from "lucide-react";
 import { useAuth } from "./lib/AuthContext";
 import IntroOverlay from "./intro/IntroOverlay";
 import NextSkillLogo from "./components/NextSkillLogo";
@@ -35,6 +36,16 @@ export default function Layout() {
   const [scrolledPastHero] = useScrolledPastHero(isLanding && introDone);
   const overlay = isLanding && !scrolledPastHero;
 
+  // The full link row plus the login/account block doesn't fit next to the
+  // logo below ~md width — it used to just wrap, which pushed "Log in /
+  // Sign up" into the middle of a stacked link column. Below md it's a
+  // hamburger toggle instead; closes itself on every route change so it
+  // never stays open across a navigation.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   return (
     <LayoutGroup>
       <div className="min-h-screen bg-cream text-charcoal">
@@ -62,7 +73,7 @@ export default function Layout() {
                   />
                 </motion.span>
               </Link>
-              <div className="flex flex-1 flex-wrap gap-4 text-sm">
+              <div className="hidden flex-1 flex-wrap gap-4 text-sm md:flex">
                 {NAV_LINKS.map((link) => (
                   <NavLink
                     key={link.to}
@@ -83,31 +94,91 @@ export default function Layout() {
                   </NavLink>
                 ))}
               </div>
-              {isLoggedIn ? (
-                <div
-                  className={`flex items-center gap-3 text-sm transition-colors duration-300 ${overlay ? "text-cream/70" : "text-charcoal/70"}`}
-                >
-                  <Link to="/account" className="hover:opacity-80">
-                    {profile?.email ?? "My Account"}
+              <div className="hidden md:block">
+                {isLoggedIn ? (
+                  <div
+                    className={`flex items-center gap-3 text-sm transition-colors duration-300 ${overlay ? "text-cream/70" : "text-charcoal/70"}`}
+                  >
+                    <Link to="/account" className="hover:opacity-80">
+                      {profile?.email ?? "My Account"}
+                    </Link>
+                    {profile?.is_admin && (
+                      <Link to="/admin" className="hover:opacity-80">
+                        Admin
+                      </Link>
+                    )}
+                    <button onClick={logout} className="hover:opacity-80">
+                      Log out
+                    </button>
+                  </div>
+                ) : (
+                  <Link
+                    to="/login"
+                    className={`text-sm font-semibold transition-colors duration-300 ${overlay ? "text-cream" : "text-forest"}`}
+                  >
+                    Log in / Sign up
                   </Link>
-                  {profile?.is_admin && (
-                    <Link to="/admin" className="hover:opacity-80">
-                      Admin
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMobileOpen((open) => !open)}
+                aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileOpen}
+                className={`ml-auto flex h-9 w-9 items-center justify-center rounded-full transition-colors duration-300 md:hidden ${
+                  overlay ? "text-cream" : "text-charcoal"
+                }`}
+              >
+                {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            </nav>
+
+            {mobileOpen && (
+              <div
+                className={`flex flex-col gap-1 border-t px-6 py-4 text-sm md:hidden ${
+                  overlay ? "border-cream/15 bg-forest" : "border-black/10 bg-cream"
+                }`}
+              >
+                {NAV_LINKS.map((link) => (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    className={({ isActive }) =>
+                      `rounded-lg px-2 py-2 transition-colors duration-300 ${
+                        isActive
+                          ? overlay
+                            ? "font-semibold text-cream"
+                            : "font-semibold text-forest"
+                          : overlay
+                            ? "text-cream/70"
+                            : "text-charcoal/70"
+                      }`
+                    }
+                  >
+                    {link.label}
+                  </NavLink>
+                ))}
+                <div className={`mt-2 border-t pt-3 ${overlay ? "border-cream/15" : "border-black/10"}`}>
+                  {isLoggedIn ? (
+                    <div className={`flex flex-col gap-2 px-2 ${overlay ? "text-cream/70" : "text-charcoal/70"}`}>
+                      <Link to="/account">{profile?.email ?? "My Account"}</Link>
+                      {profile?.is_admin && <Link to="/admin">Admin</Link>}
+                      <button onClick={logout} className="text-left">
+                        Log out
+                      </button>
+                    </div>
+                  ) : (
+                    <Link
+                      to="/login"
+                      className={`block px-2 font-semibold ${overlay ? "text-cream" : "text-forest"}`}
+                    >
+                      Log in / Sign up
                     </Link>
                   )}
-                  <button onClick={logout} className="hover:opacity-80">
-                    Log out
-                  </button>
                 </div>
-              ) : (
-                <Link
-                  to="/login"
-                  className={`text-sm font-semibold transition-colors duration-300 ${overlay ? "text-cream" : "text-forest"}`}
-                >
-                  Log in / Sign up
-                </Link>
-              )}
-            </nav>
+              </div>
+            )}
           </header>
         )}
         <main>
