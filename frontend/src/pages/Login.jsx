@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPost } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
@@ -12,10 +12,15 @@ export default function Login() {
   const { login, isLoggedIn } = useAuth();
   const navigate = useNavigate();
 
-  if (isLoggedIn) {
-    navigate("/account");
-    return null;
-  }
+  // navigate() during render (rather than in an effect) updates the
+  // router's own state while this component is still rendering, which
+  // React warns about — surfaced by Playwright while testing the actual
+  // login flow rather than injecting a token directly into localStorage.
+  useEffect(() => {
+    if (isLoggedIn) navigate("/account");
+  }, [isLoggedIn, navigate]);
+
+  if (isLoggedIn) return null;
 
   async function handleSubmit(e) {
     e.preventDefault();
