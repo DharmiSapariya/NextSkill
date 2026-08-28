@@ -11,6 +11,7 @@ import SkillNetwork from "./pages/SkillNetwork";
 import ResumeSalary from "./pages/ResumeSalary";
 import Jobs from "./pages/Jobs";
 import Companies from "./pages/Companies";
+import Reports from "./pages/Reports";
 import MyAccount from "./pages/MyAccount";
 import Admin from "./pages/Admin";
 
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="resume-salary" element={<ResumeSalary />} />
             <Route path="jobs" element={<Jobs />} />
             <Route path="companies" element={<Companies />} />
+            <Route path="reports/:token" element={<Reports />} />
             <Route
               path="account"
               element={
