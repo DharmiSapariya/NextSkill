@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowRight, ArrowUp, Search } from "lucide-react";
 import { apiGet } from "../lib/api";
-import PageHeader from "./shared/PageHeader";
+import FeatureHeader from "./shared/FeatureHeader";
 import Card from "./shared/Card";
 import { EmptyState, ErrorState, LoadingState } from "./shared/RequestState";
 
@@ -168,19 +168,22 @@ export default function ExploreSkill() {
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-12 sm:py-16">
-      <PageHeader
+      <FeatureHeader
         eyebrow="One skill, in context"
         title="Explore a Skill"
         subtitle="Demand trends and adjacent skills — pulled from live job postings, not a static glossary."
+        illustration="/illustrations/explore-skill.svg"
       />
 
-      <SkillSearch onSelect={setSkill} />
+      <div className="mt-10">
+        <SkillSearch onSelect={setSkill} />
+      </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6">
-        <Card eyebrow="Market demand" title={skill}>
+        <Card eyebrow="Market demand" title={skill} tone="periwinkle">
           <TrendCard skill={skill} />
         </Card>
-        <Card eyebrow="Commonly asked for alongside it" title="Related skills">
+        <Card eyebrow="Commonly asked for alongside it" title="Related skills" tone="lime">
           <RelatedSkills skill={skill} onSelect={setSkill} />
         </Card>
       </div>

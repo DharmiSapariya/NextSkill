@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { FileUp, TrendingUp } from "lucide-react";
 import { apiPost, getApiBase, getToken } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
-import PageHeader from "./shared/PageHeader";
+import FeatureHeader from "./shared/FeatureHeader";
 import Card from "./shared/Card";
 import LoginPrompt from "./shared/LoginPrompt";
 import { ErrorState, LoadingState } from "./shared/RequestState";
@@ -167,20 +167,23 @@ export default function ResumeSalary() {
 
   return (
     <section className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-      <PageHeader
+      <FeatureHeader
         eyebrow="Know what you're worth"
         title="Resume & Salary"
         subtitle="Upload a resume to auto-populate your skills, then get a market-aware salary estimate for any target role."
+        illustration="/illustrations/resume-salary.svg"
       />
 
       {!isLoggedIn ? (
-        <LoginPrompt feature="Resume & Salary" />
+        <div className="mt-10">
+          <LoginPrompt feature="Resume & Salary" />
+        </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          <Card eyebrow="Step 1" title="Upload your resume">
+        <div className="mt-10 flex flex-col gap-6">
+          <Card eyebrow="Step 1" title="Upload your resume" tone="periwinkle">
             <ResumeUpload onParsed={(found) => setSkills((prev) => Array.from(new Set([...prev, ...found])))} />
           </Card>
-          <Card eyebrow="Step 2" title="Get your estimate">
+          <Card eyebrow="Step 2" title="Get your estimate" tone="lime">
             <MatchAndSalary
               role={{ value: targetRole, setValue: setTargetRole }}
               skills={skills.length ? skills : profile?.skills || []}

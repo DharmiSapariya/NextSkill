@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { apiGet } from "../lib/api";
-import PageHeader from "./shared/PageHeader";
+import FeatureHeader from "./shared/FeatureHeader";
 import Card from "./shared/Card";
 import CircularGraph from "./shared/CircularGraph";
 import { EmptyState, ErrorState, LoadingState } from "./shared/RequestState";
@@ -79,18 +79,21 @@ export default function CareerPaths() {
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-12 sm:py-16">
-      <PageHeader
+      <FeatureHeader
         eyebrow="The route, not just the destination"
         title="Career Paths"
         subtitle="Which roles are realistically one skill-gap away, built from real skill overlap — click a node to zoom in."
+        illustration="/illustrations/career-paths.svg"
       />
 
-      {graphState.status === "loading" && <LoadingState label="Mapping the role graph…" />}
-      {graphState.status === "error" && <ErrorState message="Couldn't load the role-transition graph." />}
+      <div className="mt-10">
+        {graphState.status === "loading" && <LoadingState label="Mapping the role graph…" />}
+        {graphState.status === "error" && <ErrorState message="Couldn't load the role-transition graph." />}
+      </div>
 
       {graphState.status === "ready" && (
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.1fr_1fr]">
-          <Card eyebrow="Overview" title="Every tracked role, by skill overlap">
+        <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-[1.1fr_1fr]">
+          <Card eyebrow="Overview" title="Every tracked role, by skill overlap" tone="periwinkle">
             <CircularGraph
               nodes={graphState.data.nodes}
               edges={graphState.data.edges}
@@ -99,7 +102,7 @@ export default function CareerPaths() {
               onSelect={setRole}
             />
           </Card>
-          <Card eyebrow="Selected role" title={role ? <span className="capitalize">{role}</span> : "Pick a role"}>
+          <Card eyebrow="Selected role" title={role ? <span className="capitalize">{role}</span> : "Pick a role"} tone="lime">
             <div className="mb-4 flex flex-wrap gap-1.5">
               {graphState.data.nodes.map((node) => (
                 <button

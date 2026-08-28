@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { apiGet } from "../lib/api";
-import PageHeader from "./shared/PageHeader";
+import FeatureHeader from "./shared/FeatureHeader";
 import Card from "./shared/Card";
 import { EmptyState, ErrorState, LoadingState } from "./shared/RequestState";
 
@@ -124,17 +124,18 @@ function CompanyDirectory() {
 export default function Companies() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-12 sm:py-16">
-      <PageHeader
+      <FeatureHeader
         eyebrow="Who's hiring"
         title="Companies"
         subtitle="Ranked by real posting volume — not a paid placement in sight."
+        illustration="/illustrations/companies.svg"
       />
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1.3fr]">
-        <Card eyebrow="Leaderboard" title="Top hiring companies right now">
+      <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1.3fr]">
+        <Card eyebrow="Leaderboard" title="Top hiring companies right now" tone="lime">
           <TopCompaniesLeaderboard />
         </Card>
-        <Card eyebrow="Directory" title="Browse every company">
+        <Card eyebrow="Directory" title="Browse every company" tone="periwinkle">
           <CompanyDirectory />
         </Card>
       </div>

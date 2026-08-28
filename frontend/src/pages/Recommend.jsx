@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Sparkles, X } from "lucide-react";
 import { apiPost } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
-import PageHeader from "./shared/PageHeader";
+import FeatureHeader from "./shared/FeatureHeader";
 import Card from "./shared/Card";
 import LoginPrompt from "./shared/LoginPrompt";
 import { EmptyState, ErrorState, LoadingState } from "./shared/RequestState";
@@ -90,17 +90,20 @@ export default function Recommend() {
 
   return (
     <section className="mx-auto max-w-5xl px-6 py-12 sm:py-16">
-      <PageHeader
+      <FeatureHeader
         eyebrow="Skill gaps, ranked"
         title="Recommend"
         subtitle="Tell us the role you're targeting and the skills you already have — we'll rank what's actually missing by real posting demand."
+        illustration="/illustrations/recommend.svg"
       />
 
       {!isLoggedIn ? (
-        <LoginPrompt feature="Recommend" />
+        <div className="mt-10">
+          <LoginPrompt feature="Recommend" />
+        </div>
       ) : (
-        <>
-          <Card>
+        <div className="mt-10">
+          <Card tone="periwinkle">
             <form onSubmit={runRecommend} className="flex flex-col gap-5">
               <div>
                 <label className="font-sans text-xs font-semibold uppercase tracking-wide text-forest/60">Target role</label>
@@ -146,7 +149,7 @@ export default function Recommend() {
                   <EmptyState message="No gaps found — either you're fully covered, or there isn't enough posting data for this role yet." />
                 ) : (
                   state.data.recommendations.map((rec, index) => (
-                    <div key={rec.skill} className="rounded-2xl border border-forest/10 bg-white p-5">
+                    <div key={rec.skill} className="rounded-2xl border border-forest/10 bg-lime/10 p-5">
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-3">
                           <span className="flex h-7 w-7 items-center justify-center rounded-full bg-lime/40 font-display text-xs font-bold text-forest">
@@ -178,7 +181,7 @@ export default function Recommend() {
               </div>
             )}
           </div>
-        </>
+        </div>
       )}
     </section>
   );

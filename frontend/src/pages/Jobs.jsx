@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { MapPin, Search, X } from "lucide-react";
 import { apiGet } from "../lib/api";
-import PageHeader from "./shared/PageHeader";
+import FeatureHeader from "./shared/FeatureHeader";
 import { EmptyState, ErrorState, LoadingState } from "./shared/RequestState";
 
 const PAGE_SIZE = 12;
@@ -55,13 +55,14 @@ export default function Jobs() {
 
   return (
     <section className="mx-auto max-w-6xl px-6 py-12 sm:py-16">
-      <PageHeader
+      <FeatureHeader
         eyebrow="Live postings"
         title="Jobs"
         subtitle="Real listings pulled straight from the ingestion pipeline — filter by role, location, or seniority."
+        illustration="/illustrations/jobs.svg"
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <label className="relative flex items-center">
           <Search className="pointer-events-none absolute left-3 h-4 w-4 text-charcoal/40" />
           <input
@@ -167,8 +168,11 @@ export default function Jobs() {
             </div>
           )}
           {selectedId != null && (
-            <div className="rounded-2xl border border-forest/10 bg-white p-6">
-              <button onClick={() => setSelectedId(null)} className="float-right text-charcoal/40 hover:text-charcoal">
+            <div className="rounded-2xl border border-forest/10 bg-periwinkle/15 p-6">
+              <button
+                onClick={() => setSelectedId(null)}
+                className="float-right flex h-7 w-7 items-center justify-center rounded-full bg-white text-charcoal/50 hover:text-charcoal"
+              >
                 <X className="h-4 w-4" />
               </button>
               {detail.status === "loading" && <LoadingState label="Loading posting…" />}
