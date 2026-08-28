@@ -97,6 +97,19 @@ class SharedReport(Base):
 
     user = relationship("User")
 
+class SavedJob(Base):
+    """A user's bookmarked job posting — lets someone come back to a
+    listing later without re-searching for it every time."""
+    __tablename__ = "saved_jobs"
+    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_saved_jobs_user_id_job_id"),)
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    user = relationship("User")
+    job = relationship("Job")
+
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 session = Session()

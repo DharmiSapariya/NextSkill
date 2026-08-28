@@ -30,7 +30,7 @@ from sqlalchemy import func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
-from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, session
+from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, SavedJob, session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
 from auth import hash_password, verify_password, create_access_token, get_current_user, get_current_admin_user
 from resume_parser import parse_resume
@@ -586,6 +586,88 @@ def get_job(job_id: int):
         "category": job.category,
         "description": job.description,
         "source": job.source,
+    }
+
+
+@app.post("/jobs/{job_id}/save")
+def save_job(job_id: int, current_user: User = Depends(get_current_user)):
+    """Bookmarks a posting for the logged-in user. Idempotent — saving an
+    already-saved job just confirms it's saved rather than erroring, since
+    a client re-clicking a "save" button shouldn't have to first check
+    whether it already succeeded."""
+    job = session.query(Job).filter_by(id=job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"No job found with id {job_id}")
+
+    existing = session.query(SavedJob).filter_by(user_id=current_user.id, job_id=job_id).first()
+    if not existing:
+        session.add(SavedJob(user_id=current_user.id, job_id=job_id))
+        session.commit()
+    return {"job_id": job_id, "saved": True}
+
+
+@app.delete("/jobs/{job_id}/save")
+def unsave_job(job_id: int, current_user: User = Depends(get_current_user)):
+    deleted = session.query(SavedJob).filter_by(user_id=current_user.id, job_id=job_id).delete()
+    session.commit()
+    return {"job_id": job_id, "saved": False, "was_saved": deleted > 0}
+
+
+@app.get("/auth/me/saved-jobs")
+def my_saved_jobs(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+):
+    query = session.query(SavedJob).filter_by(user_id=current_user.id)
+    total = query.count()
+    saved = query.order_by(SavedJob.created_at.desc()).offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "results": [
+            {
+                "job_id": s.job_id,
+                "saved_at": s.created_at.isoformat(),
+                "title": s.job.title if s.job else None,
+                "company": s.job.company.name if s.job and s.job.company else None,
+                "location": s.job.location if s.job else None,
+            }
+            for s in saved
+        ],
+    }
+
+
+@app.get("/jobs/{job_id}/match")
+def job_match(job_id: int, current_user: User = Depends(get_current_user)):
+    """How well the logged-in user's saved skill profile matches this one
+    specific posting — a finer-grained sibling of /match-score, which
+    scores against every posting for a whole role rather than one exact
+    listing. Cheap to compute (one job's skills, not a role's worth of
+    postings), so no caching needed."""
+    job = session.query(Job).filter_by(id=job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"No job found with id {job_id}")
+
+    required = {
+        name
+        for (name,) in session.query(Skill.name).join(JobSkill, JobSkill.skill_id == Skill.id).filter(JobSkill.job_id == job_id).all()
+    }
+    if not required:
+        return {"job_id": job_id, "required_skills": [], "matched_skills": [], "missing_skills": [], "match_pct": None}
+
+    user_skills_lower = {s.lower() for s in (current_user.skills or [])}
+    required_lower = {s.lower() for s in required}
+    matched = required_lower & user_skills_lower
+    missing = required_lower - user_skills_lower
+
+    return {
+        "job_id": job_id,
+        "required_skills": sorted(required),
+        "matched_skills": sorted(matched),
+        "missing_skills": sorted(missing),
+        "match_pct": round((len(matched) / len(required)) * 100, 1),
     }
 
 
