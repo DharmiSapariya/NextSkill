@@ -6,7 +6,6 @@
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)
 ![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL%2016-336791)
-![React](https://img.shields.io/badge/frontend-React%2019%20%2B%20Vite-61DAFB)
 ![Status](https://img.shields.io/badge/status-active%20development-orange)
 
 > Every number in this README reflects real data currently sitting in a live database, or a feature actually exercised end to end against a live backend — not a mockup or a planned design. Anything still in progress is labeled as such rather than described like it's finished.
@@ -36,46 +35,48 @@ Every recommendation traces back to real postings — click into any number and 
 
 ```mermaid
 flowchart LR
-    A[Adzuna Job Search API] --> B[Ingestion]
-    B --> C[(PostgreSQL)]
-    C --> D[NLP Skill Extraction<br/>spaCy + skillNer]
+    A[Adzuna Job Search API] --> P[Pipeline Orchestrator]
+    B[RemoteOK API] --> P
+    P --> C[(PostgreSQL)]
+    C --> D[Skill Extraction<br/>taxonomy regex + spaCy/skillNer]
     D --> C
     C --> E[FastAPI Backend]
-    E -.->|caching| R[(Redis)]
-    E --> F[Streamlit Dashboard]
-    E --> G[React Frontend<br/>Vite + Tailwind]
+    E -.->|fail-open caching| R[(Redis)]
+    S[APScheduler<br/>cron ingestion + healthcheck] --> P
+    E --> DASH[Streamlit Dashboard]
 ```
+
+The pipeline orchestrator (`pipeline.py`) treats Adzuna as the required primary source — without `ADZUNA_APP_ID`/`ADZUNA_APP_KEY` configured, a run reports itself skipped up front rather than partially ingesting from RemoteOK alone and reporting a confusing partial result. The salary model only retrains when a run actually inserted new postings, not on every scheduled tick.
 
 ## What's live right now
 
 **Backend / API**
 
-- **Real user accounts** — signup/login (JWT), a persistent saved skill profile per user, password change, account deletion
+- **Real user accounts** — signup/login (JWT, `python-jose` + bcrypt via `passlib`), a persistent saved skill profile per user (stored as JSONB), password change, account deletion — all rate-limited (5/min on auth-sensitive routes)
 - **Skill-gap recommendation engine** — ranked by real posting demand, every recommendation backed by actual postings as evidence, not a score
-- 🧾 **Resume parsing + statistical match score** — upload a PDF/DOCX resume, auto-populate your skill profile, and get a match percentage computed against *hundreds* of real postings for your target role — not a single-JD keyword scan
-- 🎯 **Per-posting match score** — how well your profile matches one *specific* listing, not just a whole role's worth of postings
-- 💰 **Salary prediction** — a model trained on real posting salary data, answering "what is learning Docker actually worth in dollars for this role"
-- 🕸️ **Role-transition graph** and **skill co-occurrence graph** — graph-shaped endpoints (nodes + weighted edges) built from real skill overlap, not guesswork
-- **Job search** — paginated, filterable by role, location, and seniority, plus bookmarking (saved jobs)
+- **Resume parsing + statistical match score** — upload a PDF/DOCX resume, auto-populate your skill profile, and get a match percentage computed against *hundreds* of real postings for your target role — not a single-JD keyword scan
+- **Per-posting match score** — how well your profile matches one *specific* listing, not just a whole role's worth of postings
+- **Salary prediction** — a model trained on real posting salary data, hot-reloaded from disk on mtime change (thread-safe, atomic swap — a partial/corrupt retrain artifact can't take down the live predictor), answering "what is learning Docker actually worth in dollars for this role"
+- **Role-transition graph** and **skill co-occurrence graph** — graph-shaped endpoints (nodes + weighted edges) built from real skill overlap. The co-occurrence graph filters which pairs are worth drawing using the overlap coefficient (so ultra-common skills like Python don't drown out framework-level connections), but reports each edge's weight as Jaccard similarity
+- **Three-tier role resolution** — exact match on a tracked role → curated alias dictionary (acronyms like SRE/QA/MLE/SWE, stack-based aliases like "React Developer" → frontend developer) → sentence-transformers semantic fallback (`all-MiniLM-L6-v2`, cosine similarity, 0.60 threshold) for anything else. Only the third tier reports a `similarity` score — the first two are literal lookups, not vector comparisons
+- **Job search** — paginated, filterable by role, location, and Postgres-regex-computed seniority (senior/mid/junior aren't stored — they're inferred live from the title), plus bookmarking (saved jobs)
 - **Skill demand trends** — month-over-month share of postings mentioning a skill, labeled rising / falling / flat / new, methodology included in the response
 - **Skill and company directories** — searchable/paginated browse endpoints, plus a fixed top-hiring-companies leaderboard
 - **Recommendation history & progress** — every past run is recorded; a progress endpoint diffs your first and latest run for a role into skills closed / still open / newly opened
 - **Shareable public reports** — publish a past recommendation run as a login-free public link, revocable, never on by default
 - **Digest** — on-demand computation of "what changed since your last run" across every role you've checked (email delivery not wired up — this environment has no SMTP credentials to send it with)
-- **Semantic role matching** — a sentence-transformers fallback when a target role doesn't exact-match a tracked role or known alias
 - **Tiered access** — free vs. pro gates evidence depth and history page size, not feature access itself
 - **Admin endpoints** — platform-wide stats and user management (`/admin/*`) — API only; no admin UI yet
-- **Redis-cached** graph/trend/related-skill endpoints, structured logging, and Sentry error tracking
-- **CORS-enabled API**, **Dockerized** (API + Postgres), **Alembic-migrated** schema, CI running the full test suite (108 tests) against a seeded database on every push
+- **Redis-cached** graph/trend/related-skill endpoints — deliberately fail open: a cache outage degrades to "recompute every request," never to "the API is down." `cache_set()` returns whether the write actually happened (`False` on no client, a Redis error, *or* a non-JSON-serializable value) rather than raising
+- **Two-source ingestion pipeline** — Adzuna (keyed, 21 tracked search terms, async with a concurrency cap and retry/backoff) and RemoteOK (keyless, Cloudflare-aware headers), orchestrated by `pipeline.py` with per-step failure isolation (one source or step failing doesn't abort the rest) and credential-aware skip behavior
+- **Skill extraction, two ways** — a fast regex/taxonomy path (`skills_taxonomy.py`'s `SkillDefinition`/`SkillExtractor`, ~48 canonical skills with aliases, one pre-compiled master regex) that's what the orchestrated pipeline actually runs, and a heavier spaCy + skillNer NLP path (`extract_skillner.py`) that can discover skills outside the fixed taxonomy — run manually, not part of the default pipeline, since it needs the separate `requirements-nlp.txt` extras
+- **Scheduled ingestion** — APScheduler, cron-configurable (`INGESTION_CRON`, default 3am daily), pipeline runs isolated in a subprocess so a memory-heavy run gets full OS-level RAM reclamation afterward, plus a 1-minute healthcheck heartbeat job for Docker/Kubernetes liveness probes, with graceful SIGTERM/SIGINT shutdown
+- **CORS-enabled API**, **Dockerized** (API + scheduler + Postgres + Redis, all in one `docker-compose.yml`), **Alembic-migrated** schema (JSONB columns, explicit `ondelete` cascade behavior on every FK, unique indexes rather than bare unique constraints), CI running the full test suite against a seeded database on every push
+- **Sentry error tracking** and structured logging throughout
 
-**Frontend** (React 19 + Vite + Tailwind)
+**Dashboard** (Streamlit) — a working operator/power-user surface: login, recommend (+ evidence), match score, salary prediction, role-transition and skill co-occurrence graphs, trends, skill profile editing, history/progress, digest, shared-report management, and an admin stats page. Talks to the API over plain HTTP, nothing bypasses it.
 
-- A full marketing landing page — animated hero, scroll-triggered sections, a recolored illustration set, custom cursor
-- Seven feature pages, each a real integration against the API above, not a placeholder: **Jobs** (search/filter/bookmark/detail), **Companies** (leaderboard + directory), **Explore a Skill** (search + trend + related skills), **Skill Network** and **Career Paths** (interactive graph visualizations, plain SVG, no charting library), **Recommend** (skill-gap results with evidence, history, progress, sharing), **Resume & Salary** (resume upload, match score, salary estimate)
-- **My Account** — profile, editable skill profile, digest, saved jobs, shared-report management, password change, account deletion
-- A public, login-free **Reports** page for shared recommendation links
-
-Backed by **~3,000 real job postings** across 21 tech roles and **~6,900 extracted skill mentions** — noise-filtered, duplicate-merged, nothing synthetic.
+**Frontend** — none right now. The previous React/Vite build was deliberately removed to make room for a ground-up redesign. A `fonts/` directory (Bricolage Grotesque + Farro, full weight sets, OFL-licensed) and a `design-assets/` directory (22 illustrations + 10 hand-drawn brand-color accent graphics, transparent PNGs) sit at the repo root, staged and ready for that rebuild — not wired into anything yet.
 
 ## API reference
 
@@ -83,7 +84,7 @@ Backed by **~3,000 real job postings** across 21 tech roles and **~6,900 extract
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/health` | Liveness check |
+| GET | `/health` | Liveness check — DB connectivity + Redis health |
 | GET | `/jobs` | Paginated job search, filterable by role/location/seniority |
 | GET | `/jobs/{job_id}` | Single posting detail |
 | GET | `/companies` | Paginated/searchable company directory |
@@ -100,15 +101,15 @@ Backed by **~3,000 real job postings** across 21 tech roles and **~6,900 extract
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/auth/signup` | `{email, password}` → JWT access token |
-| POST | `/auth/login` | `{email, password}` → JWT access token |
+| POST | `/auth/signup` | `{email, password}` → JWT access token (5/min) |
+| POST | `/auth/login` | `{email, password}` → JWT access token (5/min) |
 | POST | `/auth/refresh` | Exchange a valid token for a fresh one |
 | GET | `/auth/me` | Current user + saved skill profile |
 | PUT | `/auth/me/skills` | Update saved skill profile |
-| PUT | `/auth/me/password` | Change password (requires current password) |
-| DELETE | `/auth/me` | Delete account and everything tied to it (requires password) |
-| POST | `/auth/me/resume` | Upload a PDF/DOCX resume — extracts and merges skills into your profile |
-| GET | `/auth/me/history` | Past `/recommend` / `/recommend/evidence` runs |
+| PUT | `/auth/me/password` | Change password, requires current password (5/min) |
+| DELETE | `/auth/me` | Delete account and everything tied to it, requires password |
+| POST | `/auth/me/resume` | Upload a PDF/DOCX resume (max 5MB) — extracts and merges skills into your profile (10/min) |
+| GET | `/auth/me/history` | Past `/recommend` / `/recommend/evidence` runs, tier-limited page size |
 | GET | `/auth/me/history/progress` | First-run-vs-latest-run diff for a target role |
 | GET | `/auth/me/digest` | What changed since your last run, across every role you've checked |
 | POST | `/auth/me/history/{history_id}/share` | Publish a past run as a public link |
@@ -116,15 +117,15 @@ Backed by **~3,000 real job postings** across 21 tech roles and **~6,900 extract
 | DELETE | `/auth/me/history/shared/{token}` | Revoke a published link |
 | GET | `/auth/me/saved-jobs` | Your bookmarked postings |
 
-**Protected** (require `Authorization: Bearer <token>`, rate-limited to 10 req/min):
+**Protected** (require `Authorization: Bearer <token>`):
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/recommend` | Skill-gap recommendations ranked by market demand. `skills` in the body is optional — omit it to use your saved profile |
-| POST | `/recommend/evidence` | Same, with real postings attached as evidence for every recommendation |
-| POST | `/match-score` | Statistical match % of your skills against real postings for a target role |
+| POST | `/recommend` | Skill-gap recommendations ranked by market demand. `skills` in the body is optional — omit it to use your saved profile (10/min) |
+| POST | `/recommend/evidence` | Same, with real postings attached as evidence, tiered depth: free=3, pro=10 (10/min) |
+| POST | `/match-score` | Statistical match % of your skills against real postings for a target role (10/min) |
 | GET | `/jobs/{job_id}/match` | Match % against one specific posting's actual required skills |
-| POST | `/predict-salary` | Predicted salary range for a target role + skill set, trained on real posting data |
+| POST | `/predict-salary` | Predicted salary range for a target role + skill set, trained on real posting data (10/min) |
 | POST | `/jobs/{job_id}/save` | Bookmark a posting (idempotent) |
 | DELETE | `/jobs/{job_id}/save` | Remove a bookmark |
 
@@ -141,67 +142,82 @@ Backed by **~3,000 real job postings** across 21 tech roles and **~6,900 extract
 
 ```
 NextSkill/
-├── backend/            FastAPI app, data pipeline, ORM models, Alembic migrations, tests, Dockerfile
-├── dashboard/           Streamlit dashboard (talks to the API over HTTP only)
-├── frontend/            React + Vite + Tailwind app — the primary consumer-facing product surface
-└── .github/workflows/   CI — pytest against a seeded Postgres service on every push
+├── backend/            FastAPI app, ingestion pipeline, ORM models, Alembic migrations, tests, Dockerfile
+├── dashboard/           Streamlit operator dashboard (talks to the API over HTTP only)
+├── fonts/               Bricolage Grotesque + Farro font files, staged for the next frontend
+├── design-assets/       Illustration + doodle-accent PNGs, staged for the next frontend
+└── .github/workflows/   CI — pytest against a seeded Postgres + Redis + a dedicated empty test DB
 ```
 
 ## Tech stack
 
 **Backend**
 - **Language:** Python 3.12
-- **Database:** PostgreSQL 16 (Docker Compose, host port 5433), schema managed via Alembic
+- **Database:** PostgreSQL 16 (Docker Compose, host port 5433), schema managed via Alembic — JSONB columns, explicit cascade-delete FKs, unique indexes
 - **ORM:** SQLAlchemy 2.x
-- **NLP:** spaCy (`en_core_web_lg`) + skillNer, built on the EMSI/Lightcast open skills database; sentence-transformers for semantic role-name fallback matching
-- **Data source:** Adzuna Job Search API
-- **Backend:** FastAPI + Uvicorn, `slowapi` for rate limiting, JWT auth (`python-jose` + `passlib`/bcrypt), APScheduler for scheduled ingestion
-- **Caching:** Redis (graph/trend/related-skill endpoints)
-- **Testing:** pytest, running in CI against a real seeded Postgres instance — not mocked
+- **Web framework:** FastAPI + Uvicorn, `slowapi` for per-route rate limiting, JWT auth (`python-jose` + `passlib`/bcrypt, pinned `bcrypt<4.0` for passlib 1.7.x compatibility)
+- **Skill extraction:** a hand-maintained taxonomy (`skills_taxonomy.py`) with regex matching for the default pipeline, plus an optional spaCy (`en_core_web_lg`) + skillNer NLP path for open-ended discovery (`requirements-nlp.txt`, not installed by default)
+- **Semantic matching:** sentence-transformers (`all-MiniLM-L6-v2`) as a fallback tier when exact/alias role matching misses
+- **Data sources:** Adzuna Job Search API (keyed, primary) and RemoteOK (keyless, secondary)
+- **Scheduling:** APScheduler, cron-driven, subprocess-isolated pipeline runs
+- **Caching:** Redis, fail-open by design
+- **Testing:** pytest, running in CI against a real seeded Postgres instance (plus a second, dedicated empty database for the skill-graph tests) — not mocked
 - **Error tracking:** Sentry
 
-**Frontend**
-- React 19, Vite, Tailwind CSS, React Router
-- Framer Motion + GSAP (ScrollTrigger) for animation
-- lucide-react for icons; no charting/graph library — the skill-network and career-path visualizations are plain inline SVG
-
 **Dashboard**
-- Streamlit
+- Streamlit, plotly + networkx for the graph visualizations
 
 ## Getting started
 
-**Backend + API:**
+**Backend + API (Docker, recommended):**
 
 ```bash
 git clone https://github.com/DharmiSapariya/NextSkill.git
 cd NextSkill/backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env              # fill in ADZUNA_APP_ID / ADZUNA_APP_KEY / JWT_SECRET_KEY
-docker compose up -d db           # starts Postgres on port 5433
-
-python3 models.py                                              # creates the database schema
-python3 fetch_adzuna.py                                         # pulls postings from Adzuna
-python3 load_data.py                                            # loads postings into PostgreSQL
-pip install -r requirements-nlp.txt && python -m spacy download en_core_web_lg
-NLTK_DISABLE_IMPORT_SECURITY=1 python3 extract_skillner.py       # extracts skills via NLP
-python3 extract_languages.py                                     # supplementary extraction for common single-word skills
-
-uvicorn api:app --reload --port 8000     # starts the API on :8000
+cp .env.example .env              # fill in JWT_SECRET_KEY at minimum; ADZUNA_APP_ID/KEY optional
+docker compose up --build         # Postgres (5433) + Redis (6379) + API (8000) + scheduler
 ```
 
-(A fresh clone can also seed the schema with `python3 seed_test_data.py` instead of running the full Adzuna ingestion pipeline, if you just want something to develop against.)
-
-**Frontend:**
+**Backend + API (manual):**
 
 ```bash
-cd frontend
-npm install
-npm run dev                       # starts the Vite dev server, defaults to talking to localhost:8000
+cd NextSkill/backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+
+# Postgres + Redis need to be running and reachable at whatever DATABASE_URL/REDIS_URL point to
+alembic upgrade head                    # creates/updates the schema
+
+python3 seed_test_data.py               # fixture data to develop against, or:
+python3 pipeline.py                     # the real thing — requires ADZUNA_APP_ID/APP_KEY
+
+uvicorn api:app --reload --port 8000
 ```
 
-Copy `frontend/.env.example` to `.env` and set `VITE_API_BASE_URL` if the API isn't on the default local port.
+Optional NLP extras (only needed for `extract_skillner.py`'s open-ended skill discovery):
+
+```bash
+pip install -r requirements-nlp.txt
+python -m spacy download en_core_web_lg
+```
+
+**Running the test suite:**
+
+```bash
+pip install -r requirements-dev.txt
+alembic upgrade head
+
+# test_skill_graph.py needs a database containing nothing but what it
+# seeds itself — create a second, empty database once:
+createdb job_market_test
+DATABASE_URL="postgresql+psycopg2://jobintel:localdevpassword@localhost:5432/job_market_test" \
+  python3 -c "from models import Base, engine; Base.metadata.create_all(engine)"
+
+python3 seed_test_data.py
+python3 train_salary_model.py
+pytest -v
+```
 
 **Dashboard:**
 
@@ -211,20 +227,16 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py
 ```
 
-Or bring up the API + Postgres together:
-
-```bash
-cd backend
-docker compose up --build   # starts Postgres + the API on port 8000
-```
-
 ## Known limitations
 
-- **Trend comparison** currently spans two months (June–July 2026) restricted to a fixed set of 8 core roles, to control for search coverage expanding from a smaller initial role set to 21 roles over the project's timeline. This isn't a forecast — a real time-series model needs several more months of consistent data before it would add signal over this simpler comparison.
-- **Role matching** in `/recommend` and `/trends` matches exact substrings and known aliases first; a sentence-transformers semantic fallback only kicks in when neither hits, so an unusual role phrasing can still resolve to the wrong tracked role.
-- **Digest is computation-only.** `/auth/me/digest` correctly identifies what changed since your last run, but there's no email delivery behind it — this environment has no SMTP credentials to send from. It's fully usable from My Account today; the "weekly notification" part of the idea isn't built.
-- **Admin has no frontend.** The admin endpoints (stats, user management) work and are covered by tests, but there's no UI for them yet — the Admin page in the frontend is still a placeholder.
-- **Seed/dev data isn't production data.** `seed_test_data.py` exists purely so the test suite (and local development) has something to query against; it includes a handful of deliberately-named fixture rows (`pipeline-test-skill-*`) that show up if you browse the dev database directly. The ~3,000-posting / ~6,900-mention figures above describe the real ingested dataset, not this fixture data.
+- **No frontend right now.** The previous React build was removed entirely to make room for a ground-up redesign — `fonts/` and `design-assets/` are staged for it, but nothing consumer-facing is live today beyond the API itself and the Streamlit dashboard.
+- **Trend comparison** currently spans two 30-day windows restricted to a fixed set of tracked roles, to control for search coverage expanding over the project's timeline. This isn't a forecast — a real time-series model needs several more months of consistent data before it would add signal over this simpler comparison.
+- **Role matching** in `/recommend` and `/trends` matches exact substrings and known aliases first; a sentence-transformers semantic fallback only kicks in when neither hits, so an unusual role phrasing can still resolve to the wrong tracked role. This fallback also needs one-time network access to download its model — in network-restricted environments it fails open to plain string matching (never crashes, just skips the semantic tier).
+- **Digest is computation-only.** `/auth/me/digest` correctly identifies what changed since your last run, but there's no email delivery behind it — this environment has no SMTP credentials to send from. It's fully usable through the dashboard today; the "notification" part of the idea isn't built.
+- **Admin has no frontend.** The admin endpoints (stats, user management) work and are covered by tests, but there's no dedicated UI for them yet beyond the dashboard's admin page.
+- **The regex/taxonomy skill extractor and the spaCy/skillNer NLP extractor aren't unified.** The orchestrated pipeline (`pipeline.py`) only runs the fast, fixed-taxonomy extractor; the NLP path that can discover skills outside that list is a separate manual step, not scheduled.
+- **Seed/dev data isn't production data.** `seed_test_data.py` exists purely so the test suite (and local development) has something to query against; it includes a handful of deliberately-named fixture rows (`pipeline-test-skill-*`) that show up if you browse the dev database directly. Real ingested data comes only from actually running the pipeline against Adzuna/RemoteOK.
+- **The test suite needs two databases.** `test_skill_graph.py`'s exact-count assertions require a database containing nothing but what it seeds itself, which is incompatible with the rest of the suite depending on `seed_test_data.py`'s fixtures being present — see "Running the test suite" above for the one-time setup.
 
 ## Roadmap
 
@@ -235,13 +247,13 @@ Phases are ordered by leverage, not by calendar.
 | ✅ Shipped | Foundation | Auth, skill-gap recommender w/ evidence, trends, co-occurrence, CORS, Docker + CI |
 | ✅ Shipped | The three differentiators | Resume parsing + statistical match score, salary prediction, role-transition graph |
 | ✅ Shipped | Trust infrastructure | Alembic migrations, scheduled ingestion (APScheduler), Redis caching, structured logging + Sentry |
-| ✅ Shipped | Smarter matching | Semantic role-name fallback matching, skill lifecycle labels, seniority segmentation |
+| ✅ Shipped | Smarter matching | Semantic role-name fallback matching, seniority segmentation, skill lifecycle labels |
 | ✅ Shipped | Retention | Recommendation history + progress tracking, shareable public skill-report pages, on-demand digest (no email delivery yet) |
-| ✅ Shipped | Product surface | Tiered access, graph-shaped endpoints, saved jobs, per-posting match score, and the full React frontend consuming all of it |
-| Next | Live deployment | Hosting the API, frontend, and a production database somewhere other than local dev |
-| Then | Admin UI | A real frontend for the existing `/admin/*` endpoints |
+| ✅ Shipped | Backend redesign | Two-source ingestion (Adzuna + RemoteOK), structured skill taxonomy, hot-reloading salary model, JSONB + cascade-delete schema, dedicated test-database isolation |
+| Next | Frontend rebuild | A new consumer-facing UI on top of the redesigned API, using the staged fonts/illustrations |
+| Then | Live deployment | Hosting the API, frontend, and a production database somewhere other than local dev |
+| Then | Admin UI | A real standalone frontend for the existing `/admin/*` endpoints |
 | Then | Digest delivery | Actual email/notification delivery for the existing digest computation |
-| Then | Percentile match scoring | A richer match-score distribution beyond the current pass/fail-style coverage threshold |
 
 ## Contributors
 
