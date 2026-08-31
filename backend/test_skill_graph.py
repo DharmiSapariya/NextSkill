@@ -5,12 +5,31 @@ parameter-based filtering (limit, min_co_occurrence), and edge referential integ
 using isolated database transactions.
 """
 
+import os
 import uuid
 from typing import Callable, Dict, List, Tuple
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
-from models import Job, JobSkill, SessionLocal, Skill
+from models import Job, JobSkill, Skill
 from skill_graph import build_skill_co_occurrence_graph
+
+# These tests need a database that genuinely contains nothing but what
+# each test itself seeds — build_skill_co_occurrence_graph() has no
+# concept of "this test's data" vs. "everything else in the table", so
+# rollback-based isolation on the shared dev database (which the rest of
+# the suite relies on being pre-seeded via seed_test_data.py) can't work
+# here: a rollback undoes this test's own writes, but real seeded rows
+# from other tests/fixtures are already committed and still show up in
+# every query. A dedicated, empty database sidesteps that entirely rather
+# than fighting over what state the shared one should be in.
+_TEST_DB_URL = os.getenv(
+    "SKILL_GRAPH_TEST_DATABASE_URL",
+    "postgresql+psycopg2://jobintel:localdevpassword@localhost:5432/job_market_test",
+)
+_test_engine = create_engine(_TEST_DB_URL)
+_TestSessionLocal = sessionmaker(bind=_test_engine)
 
 
 # --- Pytest Fixtures & Helpers ---
@@ -18,7 +37,7 @@ from skill_graph import build_skill_co_occurrence_graph
 @pytest.fixture
 def db_session():
     """Provides a transactional database session rolled back automatically after every test."""
-    session = SessionLocal()
+    session = _TestSessionLocal()
     try:
         yield session
     finally:

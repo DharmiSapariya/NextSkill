@@ -76,15 +76,21 @@ def cache_get(key: str) -> Optional[Any]:
         return None
 
 
-def cache_set(key: str, value: Any, ttl_seconds: int) -> None:
-    """Serializes value to JSON and sets it in Redis with an expiration TTL."""
+def cache_set(key: str, value: Any, ttl_seconds: int) -> bool:
+    """Serializes value to JSON and sets it in Redis with an expiration TTL.
+    Returns whether the write actually happened — False on any failure
+    (no client, a Redis error, or a value that isn't JSON-serializable),
+    never raises.
+    """
     client = _get_client()
     if client is None:
-        return
+        return False
     try:
         client.set(key, json.dumps(value), ex=ttl_seconds)
-    except redis.RedisError as exc:
+        return True
+    except (redis.RedisError, TypeError, ValueError) as exc:
         logger.debug("Cache write error for key '%s': %s", key, exc)
+        return False
 
 
 def redis_healthy() -> bool:

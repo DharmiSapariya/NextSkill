@@ -38,6 +38,12 @@ jobs:
       DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market
       JWT_SECRET_KEY: ci-test-secret
       REDIS_URL: redis://localhost:6379/0
+      # test_skill_graph.py needs a database with nothing in it but what
+      # each test seeds itself — job_market is shared with the rest of the
+      # suite and gets seed_test_data.py's fixture rows, which the graph
+      # tests' exact-count assertions can't coexist with. See the comment
+      # atop test_skill_graph.py for the full reasoning.
+      SKILL_GRAPH_TEST_DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market_test
 
     steps:
       - uses: actions/checkout@v4
@@ -61,6 +67,12 @@ jobs:
       - name: Apply migrations
         working-directory: backend
         run: alembic upgrade head
+
+      - name: Create and initialize the dedicated skill-graph test database
+        working-directory: backend
+        run: |
+          PGPASSWORD=localdevpassword psql -h localhost -p 5433 -U jobintel -d job_market -c "CREATE DATABASE job_market_test;"
+          DATABASE_URL="$SKILL_GRAPH_TEST_DATABASE_URL" python -c "from models import Base, engine; Base.metadata.create_all(engine)"
 
       - name: Seed fixture data
         working-directory: backend
