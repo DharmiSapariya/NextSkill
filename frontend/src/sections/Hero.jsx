@@ -17,13 +17,12 @@ export default function Hero() {
     >
       <ScrollStroke
         scrollYProgress={scrollYProgress}
-        className="pointer-events-none absolute -right-[20%] top-0 z-0 h-full w-[140%] opacity-70"
+        className="pointer-events-none absolute left-1/2 top-[40px] z-0 h-[620px] w-[620px] -translate-x-1/2 opacity-60"
       />
 
       <div className="relative mx-auto max-w-[900px] text-center">
-        <h1 className="font-display text-[clamp(3rem,8vw,5.5rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-forest">
-          Stop
-          <br />
+        <h1 className="font-display text-[clamp(2.75rem,7vw,5rem)] font-extrabold leading-[1.08] tracking-[-0.03em] text-forest">
+          Stop{" "}
           <span className="relative inline-block">
             <img
               src="/doodles/one.png"
