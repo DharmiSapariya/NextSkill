@@ -38,38 +38,54 @@ export default function Highlighter({
     });
 
     let cancelled = false;
-    // rough-notation measures the target's box at draw time. If that
-    // happens before the surrounding layout has fully settled (a late
-    // web font swap, an image above reserving space, etc.) the stroke
-    // is drawn at a stale position and never catches up on its own.
-    // Waiting for fonts + a couple of frames, then redrawing once more
-    // on resize, keeps it glued to the actual text.
-    const draw = () => {
-      if (cancelled) return;
-      annotation.show();
-    };
-    const redraw = () => {
-      if (cancelled || !annotation.isShowing()) return;
-      annotation.hide();
-      annotation.show();
+    const timers = [];
+
+    // rough-notation's own show() is smart about this: called on an
+    // annotation that isn't showing yet, it plays the draw-in animation;
+    // called again on one that's already showing, it silently snaps to
+    // the current position with no animation at all (see its `render`
+    // branch for state "showing"). So re-calling show() a few times
+    // after the first reveal — while other content above finishes
+    // loading/reflowing — corrects any drift for free, with nothing
+    // visibly moving.
+    const reposition = () => {
+      if (!cancelled) annotation.show();
     };
 
     const readyPromise = document.fonts ? document.fonts.ready : Promise.resolve();
-
     const armShow = () => {
       readyPromise.then(() => {
-        requestAnimationFrame(() => requestAnimationFrame(draw));
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (cancelled) return;
+          reposition();
+          [150, 400, 800, 1500].forEach((delay) => {
+            timers.push(setTimeout(reposition, delay));
+          });
+        }));
       });
+    };
+
+    let resizeTimer = null;
+    const onLayoutChange = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(reposition, 150);
+    };
+    const bodyObserver = new ResizeObserver(onLayoutChange);
+    bodyObserver.observe(document.body);
+    window.addEventListener("resize", onLayoutChange);
+
+    const cleanupCommon = () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+      clearTimeout(resizeTimer);
+      bodyObserver.disconnect();
+      window.removeEventListener("resize", onLayoutChange);
+      annotation.remove();
     };
 
     if (!isView) {
       armShow();
-      window.addEventListener("resize", redraw);
-      return () => {
-        cancelled = true;
-        window.removeEventListener("resize", redraw);
-        annotation.remove();
-      };
+      return cleanupCommon;
     }
 
     const observer = new IntersectionObserver(
@@ -82,12 +98,9 @@ export default function Highlighter({
       { threshold: 0.6 }
     );
     observer.observe(el);
-    window.addEventListener("resize", redraw);
     return () => {
-      cancelled = true;
       observer.disconnect();
-      window.removeEventListener("resize", redraw);
-      annotation.remove();
+      cleanupCommon();
     };
   }, [action, color, strokeWidth, animationDuration, iterations, resolvedPadding, multiline, isView]);
 
