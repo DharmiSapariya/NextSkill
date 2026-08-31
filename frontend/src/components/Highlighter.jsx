@@ -9,7 +9,7 @@ export default function Highlighter({
   children,
   action = "highlight",
   color = "var(--lime)",
-  strokeWidth = 2,
+  strokeWidth = 3,
   animationDuration = 500,
   iterations = 1,
   padding,
@@ -43,11 +43,14 @@ export default function Highlighter({
     // rough-notation's own show() is smart about this: called on an
     // annotation that isn't showing yet, it plays the draw-in animation;
     // called again on one that's already showing, it silently snaps to
-    // the current position with no animation at all (see its `render`
-    // branch for state "showing"). So re-calling show() a few times
-    // after the first reveal — while other content above finishes
-    // loading/reflowing — corrects any drift for free, with nothing
-    // visibly moving.
+    // the current position with no animation at all. So a short, FINITE
+    // burst of re-calls right after the first reveal corrects any drift
+    // from late layout settling (fonts, images) with nothing visibly
+    // moving. This deliberately does NOT keep watching forever — a
+    // permanent observer on the page (things like the hero's looping
+    // typed text never stop triggering reflow) would mean every stroke
+    // on the page re-snaps on every keystroke of that animation, which
+    // reads as constant jitter. Once, shortly after mount, is enough.
     const reposition = () => {
       if (!cancelled) annotation.show();
     };
@@ -66,20 +69,17 @@ export default function Highlighter({
     };
 
     let resizeTimer = null;
-    const onLayoutChange = () => {
+    const onResize = () => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(reposition, 150);
     };
-    const bodyObserver = new ResizeObserver(onLayoutChange);
-    bodyObserver.observe(document.body);
-    window.addEventListener("resize", onLayoutChange);
+    window.addEventListener("resize", onResize);
 
     const cleanupCommon = () => {
       cancelled = true;
       timers.forEach(clearTimeout);
       clearTimeout(resizeTimer);
-      bodyObserver.disconnect();
-      window.removeEventListener("resize", onLayoutChange);
+      window.removeEventListener("resize", onResize);
       annotation.remove();
     };
 
