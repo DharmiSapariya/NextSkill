@@ -128,7 +128,7 @@ export default function Companies() {
         eyebrow="Who's hiring"
         title="Companies"
         subtitle="Ranked by real posting volume — not a paid placement in sight."
-        illustration="/illustrations/companies.svg"
+        illustration="/illustrations/companies.png"
       />
 
       <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1.3fr]">

@@ -172,7 +172,7 @@ export default function ExploreSkill() {
         eyebrow="One skill, in context"
         title="Explore a Skill"
         subtitle="Demand trends and adjacent skills — pulled from live job postings, not a static glossary."
-        illustration="/illustrations/explore-skill.svg"
+        illustration="/illustrations/explore-skill.png"
       />
 
       <div className="mt-10">

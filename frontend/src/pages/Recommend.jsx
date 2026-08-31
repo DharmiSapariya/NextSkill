@@ -161,7 +161,7 @@ export default function Recommend() {
         eyebrow="Skill gaps, ranked"
         title="Recommend"
         subtitle="Tell us the role you're targeting and the skills you already have — we'll rank what's actually missing by real posting demand."
-        illustration="/illustrations/recommend.svg"
+        illustration="/illustrations/recommend.png"
       />
 
       {!isLoggedIn ? (

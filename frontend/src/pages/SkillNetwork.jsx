@@ -36,7 +36,7 @@ export default function SkillNetwork() {
         eyebrow="How skills connect"
         title="Skill Network"
         subtitle="Which skills travel together across real postings — hover a node to trace its connections."
-        illustration="/illustrations/skill-network.svg"
+        illustration="/illustrations/skill-network.png"
       />
 
       <div className="mt-10">

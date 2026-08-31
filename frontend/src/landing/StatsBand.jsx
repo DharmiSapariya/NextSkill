@@ -60,7 +60,7 @@ export default function StatsBand() {
   return (
     <section className="bg-periwinkle/25 px-6 py-24 sm:py-28">
       <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 lg:grid-cols-[1fr_1.2fr]">
-        <IllustrationCard src="/illustrations/community.svg" alt="" className="mx-auto w-full max-w-sm" delay={0.1} />
+        <IllustrationCard src="/illustrations/community.png" alt="" className="mx-auto w-full max-w-sm" delay={0.1} />
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
           {STATS.map((stat, index) => (
             <Stat key={stat.label} stat={stat} index={index} />

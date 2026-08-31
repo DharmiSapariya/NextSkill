@@ -171,7 +171,7 @@ export default function ResumeSalary() {
         eyebrow="Know what you're worth"
         title="Resume & Salary"
         subtitle="Upload a resume to auto-populate your skills, then get a market-aware salary estimate for any target role."
-        illustration="/illustrations/resume-salary.svg"
+        illustration="/illustrations/resume-salary.png"
       />
 
       {!isLoggedIn ? (

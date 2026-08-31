@@ -39,7 +39,7 @@ export default function CTASection() {
           </Link>
         </div>
 
-        <IllustrationCard src="/illustrations/cta.svg" alt="" className="mx-auto w-full max-w-md" />
+        <IllustrationCard src="/illustrations/cta.png" alt="" className="mx-auto w-full max-w-md" />
       </div>
     </section>
   );

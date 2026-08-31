@@ -83,7 +83,7 @@ export default function CareerPaths() {
         eyebrow="The route, not just the destination"
         title="Career Paths"
         subtitle="Which roles are realistically one skill-gap away, built from real skill overlap — click a node to zoom in."
-        illustration="/illustrations/career-paths.svg"
+        illustration="/illustrations/career-paths.png"
       />
 
       <div className="mt-10">

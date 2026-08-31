@@ -94,7 +94,7 @@ export default function Jobs() {
         eyebrow="Live postings"
         title="Jobs"
         subtitle="Real listings pulled straight from the ingestion pipeline — filter by role, location, or seniority."
-        illustration="/illustrations/jobs.svg"
+        illustration="/illustrations/jobs.png"
       />
 
       <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3">
