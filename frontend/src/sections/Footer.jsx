@@ -1,13 +1,4 @@
-import CrowdRow from "../components/CrowdRow";
-
-const figures = [
-  "/illustrations/4n.png",
-  "/illustrations/18n.png",
-  "/illustrations/20n.png",
-  "/illustrations/8n.png",
-  "/illustrations/1N.png",
-  "/illustrations/2N.png",
-];
+import CrowdCanvas from "../components/CrowdCanvas";
 
 export default function Footer() {
   return (
@@ -28,8 +19,8 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="relative mt-12">
-        <CrowdRow figures={figures} />
+      <div className="relative mt-12 h-64 md:h-80">
+        <CrowdCanvas src="/crowd/peeps-strip.png" rows={6} cols={1} className="absolute inset-0 h-full w-full" />
       </div>
 
       <div className="relative mt-12 border-t border-forest/15 px-6 py-6">
