@@ -9,9 +9,9 @@ const figures = [
   "/illustrations/2N.png",
 ];
 
-export default function Footer({ topRef }) {
+export default function Footer() {
   return (
-    <footer ref={topRef} className="relative overflow-hidden bg-periwinkle pt-20">
+    <footer className="relative overflow-hidden bg-periwinkle pt-20">
       <div className="relative mx-auto max-w-5xl px-6 text-center">
         <h2 className="font-display text-[clamp(3rem,9vw,7rem)] font-extrabold leading-none tracking-[-0.03em] text-forest">
           NextSkill

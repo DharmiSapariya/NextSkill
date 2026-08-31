@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import AnnouncementBar from "./sections/AnnouncementBar";
 import Navbar from "./sections/Navbar";
 import Hero from "./sections/Hero";
@@ -11,35 +10,34 @@ import HowItWorksSection from "./sections/HowItWorksSection";
 import Evidence from "./sections/Evidence";
 import Pricing from "./sections/Pricing";
 import Footer from "./sections/Footer";
-import SiteConnector from "./components/SiteConnector";
+import SeamLine from "./components/SeamLine";
 
 export default function Landing() {
-  const pageRef = useRef(null);
-  const heroBoxRef = useRef(null);
-  const footerRef = useRef(null);
-
   return (
-    <div ref={pageRef} className="relative min-h-screen bg-cream">
-      <SiteConnector
-        containerRef={pageRef}
-        startRef={heroBoxRef}
-        endRef={footerRef}
-        className="pointer-events-none z-20 hidden md:block"
-      />
+    <div className="min-h-screen bg-cream">
       <AnnouncementBar />
       <Navbar />
       <main>
-        <Hero boxRef={heroBoxRef} />
+        <Hero />
+        <SeamLine />
         <Problem />
+        <SeamLine />
         <Solution />
+        <SeamLine />
         <FeatureGrid />
+        <SeamLine />
         <SkillsCloud />
+        <SeamLine />
         <Reassurance />
+        <SeamLine />
         <HowItWorksSection />
+        <SeamLine />
         <Evidence />
+        <SeamLine />
         <Pricing />
+        <SeamLine />
       </main>
-      <Footer topRef={footerRef} />
+      <Footer />
     </div>
   );
 }
