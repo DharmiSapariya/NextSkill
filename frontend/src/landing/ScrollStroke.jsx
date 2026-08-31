@@ -87,7 +87,7 @@ const LinePath = ({ className, scrollYProgress }) => {
         strokeWidth="20"
         style={{ pathLength, strokeDashoffset, opacity: 0.12 }}
       />
-      <motion.path d={SKIPER_PATH_D} stroke="#EFF87A" strokeWidth="20" style={{ pathLength, strokeDashoffset }} />
+      <motion.path d={SKIPER_PATH_D} stroke="#CFDCFF" strokeWidth="20" style={{ pathLength, strokeDashoffset }} />
     </svg>
   );
 };

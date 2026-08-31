@@ -68,8 +68,17 @@ export default function Hero() {
   }, [introDone, setIntroDone]);
 
   return (
-    <section className="flex h-screen w-full flex-col justify-center bg-forest px-6 pb-6 sm:px-10 sm:pb-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center text-center">
+    <motion.section
+      initial={false}
+      animate={{ height: introDone ? "0vh" : "100vh" }}
+      transition={{ duration: 0.7, ease: [0.65, 0, 0.35, 1], delay: introDone ? 0.2 : 0 }}
+      className="flex w-full flex-col justify-center overflow-hidden bg-forest px-6 pb-6 sm:px-10 sm:pb-8"
+    >
+      <motion.div
+        animate={{ opacity: introDone ? 0 : 1 }}
+        transition={{ duration: 0.25 }}
+        className="mx-auto flex w-full max-w-6xl flex-1 flex-col items-center justify-center text-center"
+      >
         {!introDone && (
           <span ref={fitRef} className="inline-block max-w-full">
             <motion.span layoutId="nextskill-logo" className="inline-block">
@@ -82,13 +91,17 @@ export default function Hero() {
           </span>
         )}
         <p className="mt-6 max-w-md font-sans text-sm uppercase tracking-[0.25em] text-cream/60">Career intelligence OS</p>
-      </div>
-      <div className="flex items-center justify-end font-sans text-[10px] uppercase tracking-[0.25em] text-cream/60">
+      </motion.div>
+      <motion.div
+        animate={{ opacity: introDone ? 0 : 1 }}
+        transition={{ duration: 0.25 }}
+        className="flex items-center justify-end font-sans text-[10px] uppercase tracking-[0.25em] text-cream/60"
+      >
         <span className="flex items-center gap-2">
           <span className="h-1.5 w-1.5 rounded-full bg-lime" />
           Scroll to explore
         </span>
-      </div>
-    </section>
+      </motion.div>
+    </motion.section>
   );
 }

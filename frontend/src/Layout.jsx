@@ -21,18 +21,22 @@ export default function Layout() {
   const location = useLocation();
   const isLanding = location.pathname === "/";
 
-  // Only the landing page's nav overlays its (dark) hero and morphs into
-  // the normal solid bar on scroll — every other route keeps today's
-  // static, always-cream nav untouched.
-  const [scrolledPastHero] = useScrolledPastHero(isLanding);
-  const overlay = isLanding && !scrolledPastHero;
-
   // Whether the big wordmark's fold-in in Hero has finished and shrunk
   // into this corner spot yet. Starts false only on the landing page —
   // everywhere else the nav's small logo is just always there. Hero
   // (three levels down, past the router's Outlet) reads and flips this
   // via IntroContext so the two can share one framer-motion layoutId.
   const [introDone, setIntroDone] = useState(!isLanding);
+
+  // Only the landing page's nav overlays its (dark) hero and morphs into
+  // the normal solid bar — every other route keeps today's static,
+  // always-cream nav untouched. On the landing page it flips to solid the
+  // instant the hero finishes its slide-out (not tied to actual scroll
+  // position — the hero collapses out of the way on its own), with a
+  // plain scroll-position fallback in case someone scrolls past before
+  // the intro even finishes.
+  const [scrolledPastHero] = useScrolledPastHero(isLanding);
+  const overlay = isLanding && !introDone && !scrolledPastHero;
 
   // The full link row plus the login/account block doesn't fit next to the
   // logo below ~md width — it used to just wrap, which pushed "Log in /
