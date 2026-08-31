@@ -1127,7 +1127,14 @@ def related_skills(skill_name: str, limit: int = Query(10, ge=1, le=30)):
         .filter(JobSkill.skill_id == skill.id)
     ).scalar_subquery()
 
-    base_count = db_session.query(job_ids_subquery).count()
+    # Postings mentioning this skill — not db_session.query(job_ids_subquery).count(),
+    # which wraps a scalar subquery as if it were a FROM clause and always
+    # evaluates to exactly 1 row, regardless of how many postings actually match.
+    base_count = (
+        db_session.query(func.count(JobSkill.id))
+        .filter(JobSkill.skill_id == skill.id)
+        .scalar()
+    )
     if base_count == 0:
         result = {"skill": skill.name, "based_on_postings": 0, "related_skills": []}
         cache_set(cache_key, result, ttl_seconds=3600)

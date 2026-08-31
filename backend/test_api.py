@@ -624,10 +624,12 @@ def test_related_skills_returns_sensible_results():
     assert response.status_code == 200
     data = response.json()
     assert data["skill"] == "React"
-    assert data["based_on_postings"] > 0
+    assert data["based_on_postings"] > 1
     assert len(data["related_skills"]) <= 5
     related_names = {r["skill"].lower() for r in data["related_skills"]}
     assert "react" not in related_names
+    for r in data["related_skills"]:
+        assert 0 < r["co_occurrence_pct"] <= 100
 
 
 def test_related_skills_unknown_skill():
