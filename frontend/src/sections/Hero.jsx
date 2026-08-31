@@ -36,7 +36,7 @@ export default function Hero() {
           what to learn next.
         </h1>
 
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-ink">
+        <p className="mx-auto mt-8 max-w-4xl text-[clamp(1.25rem,2.3vw,1.65rem)] font-medium leading-snug text-ink">
           NextSkill turns real job postings into a clear, evidence-backed skill-gap report for{" "}
           <TypingAnimation
             words={["Software Engineers", "Data Scientists", "Data Analysts"]}
@@ -44,8 +44,9 @@ export default function Hero() {
             typeSpeed={60}
             deleteSpeed={30}
             pauseDelay={1400}
-            className="font-semibold text-forest"
-          />{" "}
+            className="inline-block whitespace-nowrap font-semibold text-forest"
+          />
+          <br className="hidden sm:block" />
           — free, and with the receipts to prove every recommendation.
         </p>
 
