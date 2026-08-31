@@ -11,28 +11,26 @@ import HowItWorksSection from "./sections/HowItWorksSection";
 import Evidence from "./sections/Evidence";
 import Pricing from "./sections/Pricing";
 import Footer from "./sections/Footer";
-import ScrollConnector from "./components/ScrollConnector";
+import SiteConnector from "./components/SiteConnector";
 
 export default function Landing() {
-  const heroToProblemRef = useRef(null);
-  const ctaRef = useRef(null);
-  const problemHeadlineRef = useRef(null);
+  const pageRef = useRef(null);
+  const heroBoxRef = useRef(null);
+  const footerRef = useRef(null);
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div ref={pageRef} className="relative min-h-screen bg-cream">
+      <SiteConnector
+        containerRef={pageRef}
+        startRef={heroBoxRef}
+        endRef={footerRef}
+        className="pointer-events-none z-20 hidden md:block"
+      />
       <AnnouncementBar />
       <Navbar />
       <main>
-        <div ref={heroToProblemRef} className="relative">
-          <ScrollConnector
-            containerRef={heroToProblemRef}
-            startRef={ctaRef}
-            endRef={problemHeadlineRef}
-            className="pointer-events-none z-20 hidden md:block"
-          />
-          <Hero ctaRef={ctaRef} />
-          <Problem endRef={problemHeadlineRef} />
-        </div>
+        <Hero boxRef={heroBoxRef} />
+        <Problem />
         <Solution />
         <FeatureGrid />
         <SkillsCloud />
@@ -41,7 +39,7 @@ export default function Landing() {
         <Evidence />
         <Pricing />
       </main>
-      <Footer />
+      <Footer topRef={footerRef} />
     </div>
   );
 }

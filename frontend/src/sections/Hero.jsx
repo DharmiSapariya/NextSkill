@@ -2,7 +2,7 @@ import Highlighter from "../components/Highlighter";
 import TypingAnimation from "../components/TypingAnimation";
 import DashboardMock from "../components/DashboardMock";
 
-export default function Hero({ ctaRef }) {
+export default function Hero({ boxRef }) {
   return (
     <section id="top" className="relative bg-cream px-6 pb-24 pt-24 md:pb-32 md:pt-40">
       <div className="relative mx-auto max-w-[900px] text-center">
@@ -43,7 +43,6 @@ export default function Hero({ ctaRef }) {
             Get Your Free Skill Report
           </a>
           <a
-            ref={ctaRef}
             href="#how-it-works"
             className="flex h-12 items-center rounded-full border border-forest px-7 text-sm font-semibold text-forest transition-colors hover:bg-forest/5"
           >
@@ -53,7 +52,10 @@ export default function Hero({ ctaRef }) {
       </div>
 
       <div className="relative mx-auto mt-20 max-w-[900px]">
-        <div className="relative overflow-hidden rounded-3xl border border-forest/15 bg-cream shadow-[0_30px_60px_-30px_rgba(20,38,28,0.35)]">
+        <div
+          ref={boxRef}
+          className="relative overflow-hidden rounded-3xl border border-forest/15 bg-cream shadow-[0_30px_60px_-30px_rgba(20,38,28,0.35)]"
+        >
           <DashboardMock variant="skill-gap-report" label="Your skill-gap report" className="h-[420px]" />
         </div>
         <img
