@@ -9,10 +9,10 @@ export default function Highlighter({
   children,
   action = "highlight",
   color = "var(--lime)",
-  strokeWidth = 1.5,
+  strokeWidth = 2.5,
   animationDuration = 500,
-  iterations = 2,
-  padding = 2,
+  iterations = 1,
+  padding = 7,
   multiline = true,
   isView = false,
 }) {
