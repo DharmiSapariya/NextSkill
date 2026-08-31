@@ -17,12 +17,13 @@ export default function Hero() {
     >
       <ScrollStroke
         scrollYProgress={scrollYProgress}
-        className="pointer-events-none absolute -right-[20%] top-0 -z-10 h-full w-[140%] opacity-70"
+        className="pointer-events-none absolute -right-[20%] top-0 z-0 h-full w-[140%] opacity-70"
       />
 
       <div className="relative mx-auto max-w-[900px] text-center">
-        <h1 className="font-display text-[clamp(2.5rem,6vw,4rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-forest">
-          Stop{" "}
+        <h1 className="font-display text-[clamp(3rem,8vw,5.5rem)] font-extrabold leading-[1.05] tracking-[-0.03em] text-forest">
+          Stop
+          <br />
           <span className="relative inline-block">
             <img
               src="/doodles/one.png"
@@ -32,11 +33,12 @@ export default function Hero() {
             <Highlighter action="circle" color="var(--periwinkle)" isView>
               guessing
             </Highlighter>
-          </span>{" "}
+          </span>
+          <br />
           what to learn next.
         </h1>
 
-        <p className="mx-auto mt-8 max-w-4xl text-[clamp(1.25rem,2.3vw,1.65rem)] font-medium leading-snug text-ink">
+        <p className="mx-auto mt-6 max-w-2xl text-lg text-ink">
           NextSkill turns real job postings into a clear, evidence-backed skill-gap report for{" "}
           <TypingAnimation
             words={["Software Engineers", "Data Scientists", "Data Analysts"]}
@@ -44,9 +46,8 @@ export default function Hero() {
             typeSpeed={60}
             deleteSpeed={30}
             pauseDelay={1400}
-            className="inline-block whitespace-nowrap font-semibold text-forest"
-          />
-          <br className="hidden sm:block" />
+            className="font-semibold text-forest"
+          />{" "}
           — free, and with the receipts to prove every recommendation.
         </p>
 
