@@ -1,23 +1,39 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-slowapi>=0.1.9
-pydantic>=2.7
-email-validator>=2.2
-sqlalchemy>=2.0
-alembic>=1.13
-psycopg2-binary>=2.9
-redis>=5.0
-python-dotenv>=1.0
-httpx>=0.27
-passlib[bcrypt]>=1.7
-bcrypt<4.0  # passlib 1.7.4's bcrypt backend is incompatible with bcrypt>=4.0's changed API
-python-jose[cryptography]>=3.3
-python-multipart>=0.0.9  # required by FastAPI for UploadFile (resume upload)
-pdfplumber>=0.11
-python-docx>=1.1
-scikit-learn>=1.5
-joblib>=1.4
-numpy>=1.26
-sentry-sdk>=2.0
-sentence-transformers>=3.0  # semantic role matching (role_matcher.py) — pulls in torch, meaningfully increases image size; see Dockerfile for build-time model caching
-apscheduler>=3.10  # scheduler.py — runs the ingestion pipeline on a cron schedule
+# Web Framework & Server
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+slowapi>=0.1.9,<0.2.0
+
+# Data Validation & Parsing
+pydantic>=2.7.0,<3.0.0
+email-validator>=2.2.0,<3.0.0
+
+# Database & ORM
+sqlalchemy>=2.0.0,<3.0.0
+alembic>=1.13.0,<2.0.0
+psycopg2-binary>=2.9.0,<3.0.0
+redis>=5.0.0,<6.0.0
+
+# Auth & Security
+# Note: bcrypt is explicitly pinned below 4.0 to maintain compatibility with passlib 1.7.x
+passlib[bcrypt]>=1.7.4,<2.0.0
+bcrypt>=3.2.0,<4.0.0
+python-jose[cryptography]>=3.3.0,<4.0.0
+python-multipart>=0.0.9,<0.1.0
+
+# Document Processing (Resume Ingestion)
+pdfplumber>=0.11.0,<1.0.0
+python-docx>=1.1.0,<2.0.0
+
+# Machine Learning & Embeddings
+scikit-learn>=1.5.0,<2.0.0
+joblib>=1.4.0,<2.0.0
+numpy>=1.26.0,<2.0.0
+sentence-transformers>=3.0.0,<4.0.0
+
+# Background Jobs & Scheduling
+apscheduler>=3.10.0,<4.0.0
+
+# Observability, HTTP Client & Utilities
+python-dotenv>=1.0.0,<2.0.0
+httpx>=0.27.0,<1.0.0
+sentry-sdk>=2.0.0,<3.0.0

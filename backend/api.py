@@ -30,7 +30,7 @@ from sqlalchemy import func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
-from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, SavedJob, session
+from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, SavedJob, db_session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
 from auth import hash_password, verify_password, create_access_token, get_current_user, get_current_admin_user
 from resume_parser import parse_resume
@@ -132,7 +132,7 @@ def health():
     overall status to degraded — only a broken database connection does,
     since the API can't actually serve requests without one."""
     try:
-        session.execute(text("SELECT 1"))
+        db_session.execute(text("SELECT 1"))
         database = "ok"
     except SQLAlchemyError:
         database = "error"
@@ -150,12 +150,12 @@ def health():
 @limiter.limit("5/minute")
 def signup(request: Request, body: SignupRequest):
     email = body.email.lower()
-    if session.query(User).filter_by(email=email).first():
+    if db_session.query(User).filter_by(email=email).first():
         raise HTTPException(status_code=409, detail="An account with this email already exists")
 
     user = User(email=email, hashed_password=hash_password(body.password), skills=[])
-    session.add(user)
-    session.commit()
+    db_session.add(user)
+    db_session.commit()
     logger.info("New user signed up: id=%s", user.id)
     return TokenResponse(access_token=create_access_token(user.id))
 
@@ -163,7 +163,7 @@ def signup(request: Request, body: SignupRequest):
 @app.post("/auth/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
 def login(request: Request, body: LoginRequest):
-    user = session.query(User).filter_by(email=body.email.lower()).first()
+    user = db_session.query(User).filter_by(email=body.email.lower()).first()
     if not user or not verify_password(body.password, user.hashed_password):
         logger.warning("Failed login attempt: email=%s", body.email.lower())
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -199,7 +199,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 @app.put("/auth/me/skills")
 def update_my_skills(body: SkillsUpdateRequest, current_user: User = Depends(get_current_user)):
     current_user.skills = body.skills
-    session.commit()
+    db_session.commit()
     return {"id": current_user.id, "email": current_user.email, "skills": current_user.skills}
 
 
@@ -216,7 +216,7 @@ def change_password(
         logger.warning("Failed password change attempt: user id=%s", current_user.id)
         raise HTTPException(status_code=401, detail="Current password is incorrect")
     current_user.hashed_password = hash_password(body.new_password)
-    session.commit()
+    db_session.commit()
     logger.info("Password changed: user id=%s", current_user.id)
     return {"status": "password updated"}
 
@@ -232,10 +232,10 @@ def delete_account(body: AccountDeleteRequest, current_user: User = Depends(get_
         raise HTTPException(status_code=401, detail="Password is incorrect")
 
     user_id = current_user.id
-    session.query(SharedReport).filter_by(user_id=user_id).delete()
-    session.query(RecommendationHistory).filter_by(user_id=user_id).delete()
-    session.delete(current_user)
-    session.commit()
+    db_session.query(SharedReport).filter_by(user_id=user_id).delete()
+    db_session.query(RecommendationHistory).filter_by(user_id=user_id).delete()
+    db_session.delete(current_user)
+    db_session.commit()
     logger.info("Account deleted: user id=%s", user_id)
     return {"status": "account deleted"}
 
@@ -257,7 +257,7 @@ def recommendation_history(
     tier_ceiling = PRO_TIER_HISTORY_LIMIT_CEILING if current_user.tier == "pro" else FREE_TIER_HISTORY_LIMIT_CEILING
     effective_limit = min(limit, tier_ceiling)
 
-    query = session.query(RecommendationHistory).filter_by(user_id=current_user.id)
+    query = db_session.query(RecommendationHistory).filter_by(user_id=current_user.id)
     if target_role:
         query = query.filter(RecommendationHistory.resolved_role == resolve_role(target_role)["resolved"])
 
@@ -286,7 +286,7 @@ def recommendation_progress(
     role, so a user can see which gap skills they've actually closed."""
     resolved = resolve_role(target_role)["resolved"]
     entries = (
-        session.query(RecommendationHistory)
+        db_session.query(RecommendationHistory)
         .filter_by(user_id=current_user.id, resolved_role=resolved)
         .order_by(RecommendationHistory.created_at.asc())
         .all()
@@ -327,7 +327,7 @@ def my_digest(current_user: User = Depends(get_current_user)):
     Unlike /auth/me/history/progress (first run vs. latest, all-time),
     this compares the latest run against the one right before it — "what's
     new since you last looked," not the whole history's worth of change."""
-    changes = compute_digest_for_user(current_user.id)
+    changes = compute_digest_for_user(current_user.id, db_session)
     if not changes:
         return {"changes": [], "message": "No change in your top gap skill since your last recorded run, for any tracked role."}
     return {"changes": changes}
@@ -339,7 +339,7 @@ def share_recommendation(history_id: int, current_user: User = Depends(get_curre
     login-free link — Phase 4's "shareable public skill-report pages."
     Nothing is shareable until a user explicitly chooses to publish it;
     the rest of their history stays private."""
-    entry = session.query(RecommendationHistory).filter_by(id=history_id, user_id=current_user.id).first()
+    entry = db_session.query(RecommendationHistory).filter_by(id=history_id, user_id=current_user.id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="No recommendation history entry found with that id")
 
@@ -352,8 +352,8 @@ def share_recommendation(history_id: int, current_user: User = Depends(get_curre
         skills_at_time=entry.skills_at_time,
         recommendations=entry.recommendations,
     )
-    session.add(shared)
-    session.commit()
+    db_session.add(shared)
+    db_session.commit()
     logger.info("Shared report created: user id=%s token=%s", current_user.id, token)
 
     return {"token": token, "share_path": f"/reports/{token}"}
@@ -364,7 +364,7 @@ def get_shared_report(token: str):
     """Public, no auth required — this is the whole point of a shareable
     link. Returns only the report snapshot, never the owning user's email
     or id."""
-    shared = session.query(SharedReport).filter_by(token=token).first()
+    shared = db_session.query(SharedReport).filter_by(token=token).first()
     if not shared:
         raise HTTPException(status_code=404, detail="No shared report found for this link")
     return {
@@ -391,7 +391,7 @@ def my_shared_reports(
     Paginated like every other list endpoint in the API (/jobs, /auth/me/history,
     /skills, /companies, /admin/users) — this was the one that had been
     left returning everything unbounded."""
-    query = session.query(SharedReport).filter_by(user_id=current_user.id)
+    query = db_session.query(SharedReport).filter_by(user_id=current_user.id)
     total = query.count()
     shared = query.order_by(SharedReport.created_at.desc()).offset(offset).limit(limit).all()
     return {
@@ -415,11 +415,11 @@ def my_shared_reports(
 def revoke_shared_report(token: str, current_user: User = Depends(get_current_user)):
     """Revokes a previously published link — owner-only, so a shared report
     isn't permanently public with no way to take it back."""
-    shared = session.query(SharedReport).filter_by(token=token, user_id=current_user.id).first()
+    shared = db_session.query(SharedReport).filter_by(token=token, user_id=current_user.id).first()
     if not shared:
         raise HTTPException(status_code=404, detail="No shared report found for this link")
-    session.delete(shared)
-    session.commit()
+    db_session.delete(shared)
+    db_session.commit()
     logger.info("Shared report revoked: user id=%s token=%s", current_user.id, token)
     return {"revoked": True}
 
@@ -448,7 +448,7 @@ async def upload_resume(
 
     existing = set(current_user.skills or [])
     current_user.skills = sorted(existing | set(found_skills))
-    session.commit()
+    db_session.commit()
 
     return {
         "id": current_user.id,
@@ -536,7 +536,7 @@ def list_jobs(
     limit: int = Query(20, ge=1, le=100, description="Max results per page (max 100)"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ):
-    query = session.query(Job)
+    query = db_session.query(Job)
     if role:
         query = query.filter(Job.title.ilike(f"%{role}%"))
     if location:
@@ -575,7 +575,7 @@ def list_jobs(
 
 @app.get("/jobs/{job_id}")
 def get_job(job_id: int):
-    job = session.query(Job).filter_by(id=job_id).first()
+    job = db_session.query(Job).filter_by(id=job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail=f"No job found with id {job_id}")
     return {
@@ -595,21 +595,21 @@ def save_job(job_id: int, current_user: User = Depends(get_current_user)):
     already-saved job just confirms it's saved rather than erroring, since
     a client re-clicking a "save" button shouldn't have to first check
     whether it already succeeded."""
-    job = session.query(Job).filter_by(id=job_id).first()
+    job = db_session.query(Job).filter_by(id=job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail=f"No job found with id {job_id}")
 
-    existing = session.query(SavedJob).filter_by(user_id=current_user.id, job_id=job_id).first()
+    existing = db_session.query(SavedJob).filter_by(user_id=current_user.id, job_id=job_id).first()
     if not existing:
-        session.add(SavedJob(user_id=current_user.id, job_id=job_id))
-        session.commit()
+        db_session.add(SavedJob(user_id=current_user.id, job_id=job_id))
+        db_session.commit()
     return {"job_id": job_id, "saved": True}
 
 
 @app.delete("/jobs/{job_id}/save")
 def unsave_job(job_id: int, current_user: User = Depends(get_current_user)):
-    deleted = session.query(SavedJob).filter_by(user_id=current_user.id, job_id=job_id).delete()
-    session.commit()
+    deleted = db_session.query(SavedJob).filter_by(user_id=current_user.id, job_id=job_id).delete()
+    db_session.commit()
     return {"job_id": job_id, "saved": False, "was_saved": deleted > 0}
 
 
@@ -619,7 +619,7 @@ def my_saved_jobs(
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),
 ):
-    query = session.query(SavedJob).filter_by(user_id=current_user.id)
+    query = db_session.query(SavedJob).filter_by(user_id=current_user.id)
     total = query.count()
     saved = query.order_by(SavedJob.created_at.desc()).offset(offset).limit(limit).all()
     return {
@@ -646,13 +646,13 @@ def job_match(job_id: int, current_user: User = Depends(get_current_user)):
     scores against every posting for a whole role rather than one exact
     listing. Cheap to compute (one job's skills, not a role's worth of
     postings), so no caching needed."""
-    job = session.query(Job).filter_by(id=job_id).first()
+    job = db_session.query(Job).filter_by(id=job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail=f"No job found with id {job_id}")
 
     required = {
         name
-        for (name,) in session.query(Skill.name).join(JobSkill, JobSkill.skill_id == Skill.id).filter(JobSkill.job_id == job_id).all()
+        for (name,) in db_session.query(Skill.name).join(JobSkill, JobSkill.skill_id == Skill.id).filter(JobSkill.job_id == job_id).all()
     }
     if not required:
         return {"job_id": job_id, "required_skills": [], "matched_skills": [], "missing_skills": [], "match_pct": None}
@@ -674,7 +674,7 @@ def job_match(job_id: int, current_user: User = Depends(get_current_user)):
 @app.get("/companies/top")
 def top_companies(limit: int = Query(10, ge=1, le=50)):
     results = (
-        session.query(Company.name, func.count(Job.id).label("postings"))
+        db_session.query(Company.name, func.count(Job.id).label("postings"))
         .join(Job, Job.company_id == Company.id)
         .group_by(Company.name)
         .order_by(func.count(Job.id).desc())
@@ -694,7 +694,7 @@ def list_companies(
     leaderboard (top N by posting count, no paging, no name search); this is
     the general-purpose listing behind it for a "browse all companies" page."""
     query = (
-        session.query(Company.name, func.count(Job.id).label("postings"))
+        db_session.query(Company.name, func.count(Job.id).label("postings"))
         .join(Job, Job.company_id == Company.id)
         .group_by(Company.name)
     )
@@ -725,7 +725,7 @@ def admin_stats(current_user: User = Depends(get_current_admin_user)):
     signup_cutoff = datetime.now(timezone.utc) - timedelta(days=ADMIN_SIGNUP_WINDOW_DAYS)
 
     top_target_roles = (
-        session.query(RecommendationHistory.resolved_role, func.count(RecommendationHistory.id).label("times_requested"))
+        db_session.query(RecommendationHistory.resolved_role, func.count(RecommendationHistory.id).label("times_requested"))
         .group_by(RecommendationHistory.resolved_role)
         .order_by(func.count(RecommendationHistory.id).desc())
         .limit(10)
@@ -733,13 +733,13 @@ def admin_stats(current_user: User = Depends(get_current_admin_user)):
     )
 
     return {
-        "total_users": session.query(User).count(),
-        "signups_last_30_days": session.query(User).filter(User.created_at >= signup_cutoff).count(),
-        "total_jobs": session.query(Job).count(),
-        "total_companies": session.query(Company).count(),
-        "total_skills": session.query(Skill).count(),
-        "total_skill_mentions": session.query(JobSkill).count(),
-        "total_shared_reports": session.query(SharedReport).count(),
+        "total_users": db_session.query(User).count(),
+        "signups_last_30_days": db_session.query(User).filter(User.created_at >= signup_cutoff).count(),
+        "total_jobs": db_session.query(Job).count(),
+        "total_companies": db_session.query(Company).count(),
+        "total_skills": db_session.query(Skill).count(),
+        "total_skill_mentions": db_session.query(JobSkill).count(),
+        "total_shared_reports": db_session.query(SharedReport).count(),
         "top_target_roles": [
             {"role": role, "times_requested": count} for role, count in top_target_roles
         ],
@@ -757,7 +757,7 @@ def admin_list_users(
     tier and is_admin are real, load-bearing access-control fields (Phase 5
     tiering, admin gating) with no way to see who has what short of a raw
     SQL query. Read-only; PUT /admin/users/{user_id} is the write side."""
-    query = session.query(User)
+    query = db_session.query(User)
     if q:
         query = query.filter(User.email.ilike(f"%{q}%"))
 
@@ -791,7 +791,7 @@ def admin_update_user(
     single-operator project, but not something an actual admin UI could
     ever drive. This is that missing write path, still admin-gated, not
     self-service."""
-    target = session.query(User).filter_by(id=user_id).first()
+    target = db_session.query(User).filter_by(id=user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail=f"No user found with id {user_id}")
 
@@ -799,7 +799,7 @@ def admin_update_user(
         target.tier = body.tier
     if body.is_admin is not None:
         target.is_admin = body.is_admin
-    session.commit()
+    db_session.commit()
     logger.info(
         "User updated by admin: admin id=%s target id=%s tier=%s is_admin=%s",
         current_user.id, target.id, target.tier, target.is_admin,
@@ -820,14 +820,14 @@ def admin_delete_user(user_id: int, current_user: User = Depends(get_current_adm
     check, since it's self-service); this is the admin-initiated equivalent
     for a problem account, authority instead of a password. Same explicit
     cascade as self-deletion: no ON DELETE CASCADE on these foreign keys."""
-    target = session.query(User).filter_by(id=user_id).first()
+    target = db_session.query(User).filter_by(id=user_id).first()
     if not target:
         raise HTTPException(status_code=404, detail=f"No user found with id {user_id}")
 
-    session.query(SharedReport).filter_by(user_id=user_id).delete()
-    session.query(RecommendationHistory).filter_by(user_id=user_id).delete()
-    session.delete(target)
-    session.commit()
+    db_session.query(SharedReport).filter_by(user_id=user_id).delete()
+    db_session.query(RecommendationHistory).filter_by(user_id=user_id).delete()
+    db_session.delete(target)
+    db_session.commit()
     logger.info("User deleted by admin: admin id=%s target id=%s", current_user.id, user_id)
     return {"status": "user deleted", "id": user_id}
 
@@ -862,7 +862,7 @@ def _core_role_filter():
 
 def _mentions_in_range(skill_id, start, end):
     return (
-        session.query(JobSkill)
+        db_session.query(JobSkill)
         .join(Job, Job.id == JobSkill.job_id)
         .filter(JobSkill.skill_id == skill_id)
         .filter(Job.posted_date >= start)
@@ -874,7 +874,7 @@ def _mentions_in_range(skill_id, start, end):
 
 def _total_postings_in_range(start, end):
     return (
-        session.query(Job)
+        db_session.query(Job)
         .filter(Job.posted_date >= start)
         .filter(Job.posted_date < end)
         .filter(_core_role_filter())
@@ -948,7 +948,7 @@ def _trend_window():
     hand, and it's deterministic for tests regardless of what day they run.
     Returns None if there's no core-role data at all yet.
     """
-    latest = session.query(func.max(Job.posted_date)).filter(_core_role_filter()).scalar()
+    latest = db_session.query(func.max(Job.posted_date)).filter(_core_role_filter()).scalar()
     if latest is None:
         return None
     current_end = latest + timedelta(days=1)  # exclusive upper bound
@@ -964,7 +964,7 @@ def skill_trend(skill_name: str):
     if cached is not None:
         return cached
 
-    skill = session.query(Skill).filter(Skill.name.ilike(skill_name)).first()
+    skill = db_session.query(Skill).filter(Skill.name.ilike(skill_name)).first()
     if not skill:
         raise HTTPException(status_code=404, detail=f"No data found for skill '{skill_name}'")
 
@@ -983,7 +983,7 @@ def skill_trend(skill_name: str):
     change_pct, direction = _classify_trend(previous_share, current_share)
     lifecycle = _classify_lifecycle(previous_share, current_share, direction)
 
-    total_mentions = session.query(JobSkill).filter_by(skill_id=skill.id).count()
+    total_mentions = db_session.query(JobSkill).filter_by(skill_id=skill.id).count()
 
     result = {
         "skill": skill.name,
@@ -1027,14 +1027,14 @@ def skill_trend(skill_name: str):
 
 
 def _record_recommendation_history(user, target_role, resolved_role, skills, results):
-    session.add(RecommendationHistory(
+    db_session.add(RecommendationHistory(
         user_id=user.id,
         target_role=target_role,
         resolved_role=resolved_role,
         skills_at_time=skills,
         recommendations=results,
     ))
-    session.commit()
+    db_session.commit()
 
 
 @app.post("/recommend")
@@ -1087,7 +1087,7 @@ def list_skills(
     SKILLS_TAXONOMY seed list, consistent with the rest of the API's
     evidence-based approach. Useful for e.g. an autocomplete/browse UI."""
     query = (
-        session.query(Skill.name, func.count(JobSkill.id).label("mentions"))
+        db_session.query(Skill.name, func.count(JobSkill.id).label("mentions"))
         .join(JobSkill, JobSkill.skill_id == Skill.id)
         .group_by(Skill.name)
     )
@@ -1114,23 +1114,23 @@ def related_skills(skill_name: str, limit: int = Query(10, ge=1, le=30)):
     if cached is not None:
         return cached
 
-    skill = session.query(Skill).filter(Skill.name.ilike(skill_name)).first()
+    skill = db_session.query(Skill).filter(Skill.name.ilike(skill_name)).first()
     if not skill:
         raise HTTPException(status_code=404, detail=f"No data found for skill '{skill_name}'")
 
     job_ids_subquery = (
-        session.query(JobSkill.job_id)
+        db_session.query(JobSkill.job_id)
         .filter(JobSkill.skill_id == skill.id)
     ).scalar_subquery()
 
-    base_count = session.query(job_ids_subquery).count()
+    base_count = db_session.query(job_ids_subquery).count()
     if base_count == 0:
         result = {"skill": skill.name, "based_on_postings": 0, "related_skills": []}
         cache_set(cache_key, result, ttl_seconds=3600)
         return result
 
     co_occurring = (
-        session.query(Skill.name, func.count(JobSkill.id).label("co_occurrences"))
+        db_session.query(Skill.name, func.count(JobSkill.id).label("co_occurrences"))
         .join(JobSkill, JobSkill.skill_id == Skill.id)
         .filter(JobSkill.job_id.in_(job_ids_subquery))
         .filter(Skill.id != skill.id)

@@ -1,46 +1,89 @@
+import logging
 import re
-from models import Job, Skill, JobSkill, session
+from typing import Dict, Set, Tuple
+from sqlalchemy.orm import Session
 
-# Common single-word/short skills that skillNer's full_matches was found to miss
-# entirely as standalone terms (it only caught them inside compound phrases).
-SUPPLEMENTARY_SKILLS = [
-    "Python", "Java", "JavaScript", "TypeScript", "Go", "Rust",
-    "Swift", "Kotlin", "PHP", "Ruby", "Scala", "R", "C++", "C#",
+from models import Job, JobSkill, Skill, get_db
+
+logger = logging.getLogger("nextskill.extractor")
+
+# Separate case-sensitive vs case-insensitive term lists
+SUPPLEMENTARY_SKILLS_CASE_INSENSITIVE = [
+    "Python", "Java", "JavaScript", "TypeScript", "Rust",
+    "Swift", "Kotlin", "PHP", "Ruby", "Scala", "C++", "C#",
     "SQL", "HTML", "CSS", "React", "Docker", "Kubernetes", "AWS",
     "Azure", "GCP", "Git", "Linux", "MongoDB", "PostgreSQL", "MySQL",
 ]
 
+SUPPLEMENTARY_SKILLS_CASE_SENSITIVE = [
+    "R", "Go"
+]
 
-def extract_supplementary_skills() -> int:
-    """Regex-matches SUPPLEMENTARY_SKILLS against every job description —
-    lightweight, no NLP model needed, safe to run in the default scheduled
-    pipeline (unlike extract_skillner.py, which needs spaCy/skillNer)."""
-    skill_cache = {}
-    for name in SUPPLEMENTARY_SKILLS:
-        skill = session.query(Skill).filter_by(name=name).first()
-        if not skill:
+
+def _compile_skill_regex(name: str, case_sensitive: bool = False) -> re.Pattern:
+    """Builds a regex pattern that correctly handles special characters (+, #) at boundaries."""
+    escaped = re.escape(name)
+    # Lookaround rules ensuring we don't match inside larger words or symbols
+    pattern = rf"(?<![A-Za-z0-9#+]){escaped}(?![A-Za-z0-9#+])"
+    flags = 0 if case_sensitive else re.IGNORECASE
+    return re.compile(pattern, flags)
+
+
+def extract_supplementary_skills(db: Session) -> int:
+    """Regex-matches SUPPLEMENTARY_SKILLS against every job description using bulk operations."""
+    
+    # 1. Pre-fetch / Insert Skills in a single transaction
+    all_skill_names = SUPPLEMENTARY_SKILLS_CASE_INSENSITIVE + SUPPLEMENTARY_SKILLS_CASE_SENSITIVE
+    existing_skills = db.query(Skill).filter(Skill.name.in_(all_skill_names)).all()
+    skill_cache: Dict[str, Skill] = {s.name: s for s in existing_skills}
+
+    for name in all_skill_names:
+        if name not in skill_cache:
             skill = Skill(name=name)
-            session.add(skill)
-            session.flush()
-        skill_cache[name] = skill
-    session.commit()
+            db.add(skill)
+            db.flush()
+            skill_cache[name] = skill
+    db.commit()
 
-    jobs = session.query(Job).filter(Job.description.isnot(None)).all()
+    # 2. Pre-compile Regex Patterns
+    compiled_patterns = []
+    for name in SUPPLEMENTARY_SKILLS_CASE_INSENSITIVE:
+        compiled_patterns.append((skill_cache[name], _compile_skill_regex(name, case_sensitive=False)))
+    for name in SUPPLEMENTARY_SKILLS_CASE_SENSITIVE:
+        compiled_patterns.append((skill_cache[name], _compile_skill_regex(name, case_sensitive=True)))
+
+    # 3. Load all existing (job_id, skill_id) associations into memory in 1 query
+    existing_associations: Set[Tuple[int, int]] = set(
+        db.query(JobSkill.job_id, JobSkill.skill_id).all()
+    )
+
+    # 4. Stream jobs to avoid memory pressure
+    jobs = db.query(Job.id, Job.description).filter(Job.description.isnot(None)).all()
+    
+    new_job_skills = []
     total_matches = 0
 
-    for job in jobs:
-        for name, skill in skill_cache.items():
-            pattern = r'\b' + re.escape(name) + r'\b'
-            if re.search(pattern, job.description, re.IGNORECASE):
-                exists = session.query(JobSkill).filter_by(job_id=job.id, skill_id=skill.id).first()
-                if not exists:
-                    session.add(JobSkill(job_id=job.id, skill_id=skill.id))
+    for job_id, description in jobs:
+        for skill, pattern in compiled_patterns:
+            if pattern.search(description):
+                if (job_id, skill.id) not in existing_associations:
+                    new_job_skills.append({"job_id": job_id, "skill_id": skill.id})
+                    existing_associations.add((job_id, skill.id))
                     total_matches += 1
 
-    session.commit()
-    print(f"Added {total_matches} skill mentions across {len(jobs)} jobs")
+    # 5. Perform high-speed bulk insertion
+    if new_job_skills:
+        db.bulk_insert_mappings(JobSkill, new_job_skills)
+        db.commit()
+
+    logger.info("Added %d new skill associations across %d jobs", total_matches, len(jobs))
     return total_matches
 
 
 if __name__ == "__main__":
-    extract_supplementary_skills()
+    from models import SessionLocal
+    db_session = SessionLocal()
+    try:
+        extract_supplementary_skills(db_session)
+    finally:
+        db_session.close()

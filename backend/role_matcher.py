@@ -1,78 +1,169 @@
-"""Semantic role resolution.
+import logging
+import threading
+from functools import lru_cache
+from typing import Any, Dict, Optional, Tuple
+import anyio
 
-`Job.title.ilike(f"%{role}%")` (used throughout recommend.py, match_score.py,
-role_graph.py, and the /predict-salary endpoint) is exact substring matching —
-"ML Engineer" finds nothing against postings titled "Machine Learning
-Engineer". resolve_role() maps a free-text query to the closest tracked role
-by embedding similarity, so callers can substring-match against the resolved
-canonical name instead of the user's raw phrasing.
-
-Fails open: if the embedding model can't be loaded (e.g. no network on first
-run before it's cached), resolve_role() returns the query untouched — the
-system degrades to today's substring-only behavior, it doesn't break.
-"""
 from role_graph import TRACKED_ROLES
 
-# Calibrated against real CI runs (see test_role_matcher.py), not guessed:
-# short acronyms don't embed close enough to their expansion for a generic
-# sentence model to catch reliably ("SRE" scored 0.248 against "site
-# reliability engineer" — nowhere near any reasonable threshold), and some
-# common tech-industry phrasings are worth mapping explicitly rather than
-# hoping the embedding lands right ("React Developer" scored 0.548, just
-# under threshold, for "frontend developer"). Checked before the model at
-# all — zero embedding cost for these.
-ROLE_ALIASES = {
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("nextskill.ai.role_resolver")
+
+# Extended domain-specific acronyms and aliases
+ROLE_ALIASES: Dict[str, str] = {
+    # Acronyms
     "sre": "site reliability engineer",
+    "qa": "qa engineer",
+    "qa tester": "qa engineer",
+    "sdet": "test automation engineer",
+    "dba": "database administrator",
+    "ml engineer": "machine learning engineer",
+    "mle": "machine learning engineer",
+    "ai engineer": "ai engineer",
+    "swe": "software engineer",
+    "devops": "devops engineer",
+    "pm": "product manager",
+    "ux designer": "ui ux designer",
+    "ui designer": "ui ux designer",
+    # Frameworks & Stacks
     "react developer": "frontend developer",
+    "angular developer": "frontend developer",
+    "vue developer": "frontend developer",
+    "node developer": "backend developer",
+    "python developer": "backend developer",
+    "java developer": "backend developer",
+    "django developer": "backend developer",
+    "flutter developer": "mobile developer",
+    "react native developer": "mobile developer",
 }
 
-# 0.6, not 0.55: real CI data showed "Growth Marketing Manager" incorrectly
-# matching "product manager" at 0.576 — a threshold has to clear that with
-# margin, or it starts resolving genuinely unrelated roles.
-SIMILARITY_THRESHOLD = 0.6
+SIMILARITY_THRESHOLD = 0.60
 
-_model = None
-_model_load_failed = False
-_role_embeddings = None
+class SemanticRoleMatcher:
+    """Thread-safe, cached semantic role resolution engine using SentenceTransformers."""
+
+    _instance: Optional["SemanticRoleMatcher"] = None
+    _lock: threading.Lock = threading.Lock()
+
+    def __init__(self) -> None:
+        self.model = None
+        self.role_embeddings = None
+        self.load_failed = False
+        self._init_lock = threading.Lock()
+
+    @classmethod
+    def get_instance(cls) -> "SemanticRoleMatcher":
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
+        return cls._instance
+
+    def _ensure_model_loaded(self) -> None:
+        """Thread-safe double-checked initialization of the embedding model."""
+        if self.model is not None or self.load_failed:
+            return
+
+        with self._init_lock:
+            if self.model is not None or self.load_failed:
+                return
+
+            try:
+                logger.info("Initializing SentenceTransformer 'all-MiniLM-L6-v2'...")
+                from sentence_transformers import SentenceTransformer
+
+                self.model = SentenceTransformer("all-MiniLM-L6-v2")
+                self.role_embeddings = self.model.encode(
+                    TRACKED_ROLES, normalize_embeddings=True
+                )
+                logger.info("SentenceTransformer model loaded successfully.")
+            except Exception as exc:
+                logger.error(
+                    f"Failed to load sentence-transformers model: {str(exc)}. "
+                    "Engine failing open to string matching."
+                )
+                self.load_failed = True
+
+    def resolve(self, query: str) -> Dict[str, Any]:
+        """Synchronously resolves free-text query to nearest canonical tracked role."""
+        if not query or not query.strip():
+            return {"resolved": "", "matched_semantically": False, "similarity": None}
+
+        query_clean = query.strip().lower()
+
+        # 1. Direct hit on tracked roles
+        if query_clean in TRACKED_ROLES:
+            return {
+                "resolved": query_clean,
+                "matched_semantically": False,
+                "similarity": 1.0,
+            }
+
+        # 2. Fast lookup via alias dictionary
+        if query_clean in ROLE_ALIASES:
+            return {
+                "resolved": ROLE_ALIASES[query_clean],
+                "matched_semantically": True,
+                "similarity": 1.0,
+            }
+
+        # 3. Model lazy load check
+        self._ensure_model_loaded()
+        if self.model is None or self.role_embeddings is None:
+            return {
+                "resolved": query_clean,
+                "matched_semantically": False,
+                "similarity": None,
+            }
+
+        # 4. Vector similarity evaluation
+        from sentence_transformers import util
+
+        query_embedding = self.model.encode([query_clean], normalize_embeddings=True)
+        scores = util.cos_sim(query_embedding, self.role_embeddings)[0]
+        best_idx = int(scores.argmax())
+        best_score = float(scores[best_idx])
+
+        if best_score >= SIMILARITY_THRESHOLD:
+            return {
+                "resolved": TRACKED_ROLES[best_idx],
+                "matched_semantically": True,
+                "similarity": round(best_score, 3),
+            }
+
+        return {
+            "resolved": query_clean,
+            "matched_semantically": False,
+            "similarity": round(best_score, 3),
+        }
 
 
-def _load_model():
-    global _model, _model_load_failed, _role_embeddings
-    if _model is not None or _model_load_failed:
-        return
-    try:
-        from sentence_transformers import SentenceTransformer
-
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
-        _role_embeddings = _model.encode(TRACKED_ROLES, normalize_embeddings=True)
-    except Exception:
-        _model_load_failed = True
+# Global LRU cache layer over matcher execution
+@lru_cache(maxsize=1024)
+def resolve_role(query: str) -> Dict[str, Any]:
+    """LRU-cached resolver wrapper to prevent repeated inference on identical queries."""
+    matcher = SemanticRoleMatcher.get_instance()
+    return matcher.resolve(query)
 
 
-def resolve_role(query: str) -> dict:
-    """Returns {"resolved": str, "matched_semantically": bool, "similarity": float | None}.
+async def resolve_role_async(query: str) -> Dict[str, Any]:
+    """Async wrapper offloading CPU matrix math off the main asyncio event loop."""
+    return await anyio.to_thread.run_sync(resolve_role, query)
 
-    `resolved` is what callers should substring-match against. `similarity`
-    is None when no embedding comparison happened (exact match already found,
-    or the model isn't available).
-    """
-    query_lower = query.strip().lower()
-    if query_lower in TRACKED_ROLES:
-        return {"resolved": query_lower, "matched_semantically": False, "similarity": None}
-    if query_lower in ROLE_ALIASES:
-        return {"resolved": ROLE_ALIASES[query_lower], "matched_semantically": True, "similarity": None}
 
-    _load_model()
-    if _model is None:
-        return {"resolved": query, "matched_semantically": False, "similarity": None}
+if __name__ == "__main__":
+    # Test suite validation
+    test_queries = [
+        "software engineer",  # Direct match
+        "SRE",                # Alias lookup
+        "React Developer",    # Alias lookup
+        "ML Engineer",        # Alias lookup
+        "PyTorch Specialist", # Semantic embedding resolution
+        "Growth Marketing",   # Below threshold fallback
+    ]
 
-    from sentence_transformers import util
-
-    query_embedding = _model.encode([query], normalize_embeddings=True)
-    scores = util.cos_sim(query_embedding, _role_embeddings)[0]
-    best_idx = int(scores.argmax())
-    best_score = float(scores[best_idx])
-
-    if best_score >= SIMILARITY_THRESHOLD:
-        return {"resolved": TRACKED_ROLES[best_idx], "matched_semantically": True, "similarity": round(best_score, 3)}
-    return {"resolved": query, "matched_semantically": False, "similarity": round(best_score, 3)}
+    print("\n--- Role Resolution Results ---")
+    for q in test_queries:
+        res = resolve_role(q)
+        print(f"Query: '{q:20s}' -> Resolved: '{res['resolved']:25s}' "
+              f"| Semantic: {str(res['matched_semantically']):5s} | Score: {res['similarity']}")

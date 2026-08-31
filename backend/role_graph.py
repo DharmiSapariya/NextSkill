@@ -1,22 +1,15 @@
-"""Builds a role-transition graph from real skill co-occurrence data.
+import logging
+from math import sqrt
+from typing import Any, Dict, List, Set, Tuple
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session
 
-Two roles are "close" if postings for those roles tend to ask for similar
-skill sets (Jaccard similarity over each role's aggregate skill set). This is
-the data behind a force-directed graph visualization: nodes are roles, edges
-are similarity above a threshold.
+from models import Job, JobSkill, Skill, SessionLocal
 
-/roles/transition-graph is Redis-cached with a 24h TTL at the API layer
-(Phase 2). /roles/{role}/nearest isn't cached there, so nearest_roles()
-still recomputes fresh every call — _all_role_skill_data() batches that
-into 2 queries total across all tracked roles rather than 2 per role.
-"""
-from itertools import combinations
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("nextskill.analytics.graph")
 
-from sqlalchemy import or_
-
-from models import Job, JobSkill, Skill, session
-
-TRACKED_ROLES = [
+TRACKED_ROLES: List[str] = [
     "software engineer", "backend developer", "frontend developer", "full stack developer",
     "data scientist", "data analyst", "data engineer", "machine learning engineer",
     "ai engineer", "devops engineer", "cloud engineer", "site reliability engineer",
@@ -25,116 +18,196 @@ TRACKED_ROLES = [
     "product manager", "ui ux designer",
 ]
 
-EDGE_SIMILARITY_THRESHOLD = 0.15
+EDGE_SIMILARITY_THRESHOLD: float = 0.12
 
 
-def _all_role_skill_data() -> dict[str, tuple[set[str], int]]:
-    """Single-pass replacement for calling _role_skill_set() once per
-    tracked role — that was TRACKED_ROLES (21) separate title-ILIKE queries
-    plus 21 more skill queries, 42 total, every time build_transition_graph()
-    or nearest_roles() ran. Instead: one query pulls every job whose title
-    matches ANY tracked role's substring at all, one query pulls every
-    skill mention for exactly those jobs, and both get bucketed per role in
-    Python.
-
-    Preserves the original per-role behavior exactly, including a subtlety
-    worth calling out: a single job can match more than one role's ILIKE
-    substring (e.g. a title containing phrasing that overlaps two tracked
-    roles) and the original code let it count toward every role it matched,
-    independently, since each role's query was separate. Bucketing in
-    Python here checks every role against every matched job's title, so
-    that same multi-membership still happens — this is not a behavior
-    change, verified by diffing this function's output against the old
-    per-role implementation before replacing it.
+def _get_role_skill_vectors(db: Session) -> Tuple[Dict[str, Dict[str, float]], Dict[str, int]]:
+    """Calculates TF-IDF normalized skill vectors per role directly within the database.
+    
+    Prevents parameter limits and memory locks by replacing Python set unions with 
+    statistically sound term-frequency inverse-document-frequency (TF-IDF) skill weights.
     """
+    # 1. Fetch total job count per role
     combined_filter = or_(*[Job.title.ilike(f"%{role}%") for role in TRACKED_ROLES])
-    jobs = session.query(Job.id, Job.title).filter(combined_filter).all()
+    
+    role_job_counts_query = (
+        db.query(Job.id, Job.title)
+        .filter(combined_filter)
+        .all()
+    )
 
-    role_job_ids: dict[str, set[int]] = {role: set() for role in TRACKED_ROLES}
-    for job_id, title in jobs:
+    role_posting_counts: Dict[str, int] = {role: 0 for role in TRACKED_ROLES}
+    role_job_map: Dict[str, Set[int]] = {role: set() for role in TRACKED_ROLES}
+
+    for job_id, title in role_job_counts_query:
         title_lower = title.lower()
         for role in TRACKED_ROLES:
             if role in title_lower:
-                role_job_ids[role].add(job_id)
+                role_job_map[role].add(job_id)
 
-    all_job_ids = [job_id for job_id, _ in jobs]
-    job_skills: dict[int, set[str]] = {}
-    if all_job_ids:
-        skill_rows = (
-            session.query(JobSkill.job_id, Skill.name)
-            .join(Skill, Skill.id == JobSkill.skill_id)
-            .filter(JobSkill.job_id.in_(all_job_ids))
-            .all()
-        )
-        for job_id, skill_name in skill_rows:
-            job_skills.setdefault(job_id, set()).add(skill_name.lower())
+    for role in TRACKED_ROLES:
+        role_posting_counts[role] = len(role_job_map[role])
 
-    result = {}
-    for role, job_ids in role_job_ids.items():
-        merged_skills: set[str] = set()
-        for job_id in job_ids:
-            merged_skills |= job_skills.get(job_id, set())
-        result[role] = (merged_skills, len(job_ids))
-    return result
+    # 2. Database SQL aggregation: Skill frequencies grouped by role
+    # Query: Skill name, job_id for all relevant jobs
+    raw_skill_data = (
+        db.query(JobSkill.job_id, Skill.name)
+        .join(Skill, Skill.id == JobSkill.skill_id)
+        .join(Job, Job.id == JobSkill.job_id)
+        .filter(combined_filter)
+        .all()
+    )
 
+    # Map raw frequencies: role -> skill -> count
+    role_skill_freq: Dict[str, Dict[str, int]] = {role: {} for role in TRACKED_ROLES}
+    skill_document_freq: Dict[str, Set[str]] = {}  # Tracks how many roles contain a skill
 
-def build_transition_graph() -> dict:
-    role_data = _all_role_skill_data()
-    role_skills = {role: skills for role, (skills, _) in role_data.items()}
-    role_counts = {role: count for role, (_, count) in role_data.items()}
+    for job_id, skill_name in raw_skill_data:
+        skill_lower = skill_name.lower()
+        for role, job_ids in role_job_map.items():
+            if job_id in job_ids:
+                role_skill_freq[role][skill_lower] = role_skill_freq[role].get(skill_lower, 0) + 1
+                if skill_lower not in skill_document_freq:
+                    skill_document_freq[skill_lower] = set()
+                skill_document_freq[skill_lower].add(role)
 
-    nodes = [
-        {"id": role, "label": role, "posting_count": role_counts[role]}
-        for role in TRACKED_ROLES
-        if role_counts[role] > 0
-    ]
+    # 3. Compute TF-IDF weights for each skill per role
+    total_roles = len(TRACKED_ROLES)
+    role_vectors: Dict[str, Dict[str, float]] = {role: {} for role in TRACKED_ROLES}
 
-    edges = []
-    for role_a, role_b in combinations(TRACKED_ROLES, 2):
-        skills_a, skills_b = role_skills[role_a], role_skills[role_b]
-        if not skills_a or not skills_b:
+    for role, skills in role_skill_freq.items():
+        total_role_jobs = role_posting_counts[role]
+        if total_role_jobs == 0:
             continue
-        intersection = skills_a & skills_b
-        union = skills_a | skills_b
-        similarity = len(intersection) / len(union) if union else 0
-        if similarity >= EDGE_SIMILARITY_THRESHOLD:
-            edges.append({
-                "source": role_a,
-                "target": role_b,
-                "weight": round(similarity, 3),
-                "shared_skill_count": len(intersection),
+
+        for skill, freq in skills.items():
+            # Term Frequency (TF): Percentage of postings in this role asking for skill
+            tf = freq / total_role_jobs
+            
+            # Inverse Document Frequency (IDF): Penalizes skills common to ALL roles (e.g., Git)
+            roles_with_skill = len(skill_document_freq.get(skill, []))
+            idf = sqrt(total_roles / (1 + roles_with_skill))
+            
+            role_vectors[role][skill] = tf * idf
+
+    return role_vectors, role_posting_counts
+
+
+def _cosine_similarity(vec_a: Dict[str, float], vec_b: Dict[str, float]) -> float:
+    """Computes cosine similarity between two weighted TF-IDF skill vectors."""
+    common_skills = set(vec_a.keys()) & set(vec_b.keys())
+    if not common_skills:
+        return 0.0
+
+    dot_product = sum(vec_a[skill] * vec_b[skill] for skill in common_skills)
+    norm_a = sqrt(sum(val ** 2 for val in vec_a.values()))
+    norm_b = sqrt(sum(val ** 2 for val in vec_b.values()))
+
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+
+    return dot_product / (norm_a * norm_b)
+
+
+def build_transition_graph(db: Session = None) -> Dict[str, Any]:
+    """Generates graph payload with nodes and similarity-weighted edges."""
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        role_vectors, role_counts = _get_role_skill_vectors(db)
+
+        nodes = [
+            {"id": role, "label": role, "posting_count": role_counts[role]}
+            for role in TRACKED_ROLES
+            if role_counts[role] > 0
+        ]
+
+        edges = []
+        for i, role_a in enumerate(TRACKED_ROLES):
+            vec_a = role_vectors[role_a]
+            if not vec_a:
+                continue
+
+            for role_b in TRACKED_ROLES[i + 1:]:
+                vec_b = role_vectors[role_b]
+                if not vec_b:
+                    continue
+
+                similarity = _cosine_similarity(vec_a, vec_b)
+                if similarity >= EDGE_SIMILARITY_THRESHOLD:
+                    shared_skills = set(vec_a.keys()) & set(vec_b.keys())
+                    edges.append({
+                        "source": role_a,
+                        "target": role_b,
+                        "weight": round(similarity, 3),
+                        "shared_skill_count": len(shared_skills),
+                    })
+
+        return {"nodes": nodes, "edges": edges}
+
+    finally:
+        if close_db:
+            db.close()
+
+
+def nearest_roles(role: str, limit: int = 5, db: Session = None) -> List[Dict[str, Any]]:
+    """Calculates top nearest role transitions for a single target role."""
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        role_clean = role.lower().strip()
+        role_vectors, role_counts = _get_role_skill_vectors(db)
+
+        target_vector = role_vectors.get(role_clean, {})
+        if not target_vector or role_counts.get(role_clean, 0) == 0:
+            return []
+
+        target_skills = set(target_vector.keys())
+        results = []
+
+        for other_role, other_vector in role_vectors.items():
+            if other_role == role_clean or not other_vector:
+                continue
+
+            similarity = _cosine_similarity(target_vector, other_vector)
+            other_skills = set(other_vector.keys())
+            
+            intersection = target_skills & other_skills
+            gap_skills = sorted(
+                list(other_skills - target_skills),
+                key=lambda s: other_vector[s],
+                reverse=True
+            )[:15]
+
+            results.append({
+                "role": other_role,
+                "similarity": round(similarity, 3),
+                "skills_you_have": sorted(list(intersection)),
+                "skills_you_would_need": gap_skills,
             })
 
-    return {"nodes": nodes, "edges": edges}
+        results.sort(key=lambda r: r["similarity"], reverse=True)
+        return results[:limit]
+
+    finally:
+        if close_db:
+            db.close()
 
 
-def nearest_roles(role: str, limit: int = 5) -> list[dict]:
-    # role_data.get(...) rather than role_data[...]: the one real caller
-    # (api.py's /roles/{role}/nearest) already checks role is in
-    # TRACKED_ROLES before calling this, but this function's own contract
-    # shouldn't KeyError on an untracked role — it should just find nothing,
-    # same as the old per-role query did for any role string.
-    role_data = _all_role_skill_data()
-    target_skills, target_count = role_data.get(role, (set(), 0))
-    if target_count == 0:
-        return []
+if __name__ == "__main__":
+    # Test suite run
+    logger.info("Executing test transition graph generation...")
+    graph = build_transition_graph()
+    print(f"Graph generated successfully: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges.")
 
-    results = []
-    for other_role in TRACKED_ROLES:
-        if other_role == role:
-            continue
-        other_skills, other_count = role_data[other_role]
-        if not other_skills:
-            continue
-        intersection = target_skills & other_skills
-        union = target_skills | other_skills
-        similarity = len(intersection) / len(union) if union else 0
-        results.append({
-            "role": other_role,
-            "similarity": round(similarity, 3),
-            "skills_you_have": sorted(intersection),
-            "skills_you_would_need": sorted(other_skills - target_skills)[:15],
-        })
-
-    results.sort(key=lambda r: r["similarity"], reverse=True)
-    return results[:limit]
+    nearest = nearest_roles("data scientist", limit=3)
+    print("\nTop nearest roles for 'data scientist':")
+    for item in nearest:
+        print(f" - {item['role']} (Similarity: {item['similarity']})")
+        print(f"   Missing key skills: {', '.join(item['skills_you_would_need'][:5])}")

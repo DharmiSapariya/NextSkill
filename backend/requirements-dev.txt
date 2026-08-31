@@ -1,4 +1,17 @@
-# Test-only dependencies — not needed by the deployed API, kept out of
-# requirements.txt so the production image doesn't ship a test runner.
+# Inherit base application dependencies
 -r requirements.txt
-pytest>=8.2
+
+# Test runner and core test framework
+pytest>=8.2.0,<9.0.0
+pytest-env>=1.1.0,<2.0.0
+pytest-asyncio>=0.23.0,<1.0.0
+
+# HTTP & API testing utilities
+httpx>=0.27.0,<1.0.0
+
+# Coverage reporting and mock support
+pytest-cov>=5.0.0,<6.0.0
+pytest-mock>=3.14.0,<4.0.0
+
+# Database fixture utilities
+factory-boy>=3.3.0,<4.0.0

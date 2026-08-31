@@ -1,76 +1,134 @@
-"""Builds a skill co-occurrence graph from real postings — the same
-graph-shaped node/edge pattern role_graph.py already uses for role
-transitions (Phase 5: "graph-shaped API endpoints... extend that pattern
-to co-occurrence and trend data too"), applied to skills instead of roles.
+"""Skill co-occurrence graph generator.
 
-Two skills are "close" if they tend to appear together in the same
-postings (Jaccard similarity over each skill's set of postings) — same
-similarity measure role_graph.py uses, for the same reason: intersection
-over union naturally normalizes for how common each skill is on its own,
-so a very common skill doesn't dominate every edge just from volume.
-
-Restricted to the TOP_N_SKILLS most-mentioned skills overall. With every
-skill in the taxonomy the graph would be too dense — mostly noise from
-rare skills with tiny, coincidental overlaps — to be legible in a
-force-directed visualization. Same reasoning role_graph.py already applies
-by fixing a tracked role list instead of graphing every role phrase ever
-seen in a title.
+Computes skill proximity matrices using database-native relational joins and 
+normalized similarity measures (Overlap Coefficient & Jaccard) to power 
+force-directed network graphs.
 """
-from itertools import combinations
 
+import logging
+from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import func
+from sqlalchemy.orm import Session, aliased
 
-from models import JobSkill, Skill, session
+from models import JobSkill, SessionLocal, Skill
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("nextskill.analytics.co_occurrence")
 
 TOP_N_SKILLS = 30
-EDGE_SIMILARITY_THRESHOLD = 0.1
+EDGE_SIMILARITY_THRESHOLD = 0.10
 
 
-def _top_skills(limit: int) -> list[tuple[int, str, int]]:
+def _get_top_skills(db: Session, limit: int) -> List[Tuple[int, str, int]]:
+    """Retrieves top N skills ranked by posting mention count."""
     return (
-        session.query(Skill.id, Skill.name, func.count(JobSkill.id).label("mentions"))
+        db.query(Skill.id, Skill.name, func.count(JobSkill.job_id).label("mentions"))
         .join(JobSkill, JobSkill.skill_id == Skill.id)
         .group_by(Skill.id, Skill.name)
-        .order_by(func.count(JobSkill.id).desc())
+        .order_by(func.count(JobSkill.job_id).desc())
         .limit(limit)
         .all()
     )
 
 
-def _job_id_sets_for(skill_ids: list[int]) -> dict[int, set[int]]:
-    """One query for every skill's posting-id set, not one query per skill —
-    the naive per-skill version (call _skill_job_id_set once per skill in a
-    dict comprehension) is a real N+1: TOP_N_SKILLS separate round trips
-    instead of one. Cheap to avoid since job_skills.skill_id is already
-    indexed (added earlier this session) and everything needed fits in one
-    filtered, unaggregated row-per-mention query."""
-    job_id_sets: dict[int, set[int]] = {skill_id: set() for skill_id in skill_ids}
-    rows = session.query(JobSkill.skill_id, JobSkill.job_id).filter(JobSkill.skill_id.in_(skill_ids)).all()
-    for skill_id, job_id in rows:
-        job_id_sets[skill_id].add(job_id)
-    return job_id_sets
+def build_skill_co_occurrence_graph(
+    limit: int = TOP_N_SKILLS, 
+    threshold: float = EDGE_SIMILARITY_THRESHOLD,
+    db: Optional[Session] = None
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Builds a skill network graph payload using relational SQL co-occurrence joins.
+
+    Args:
+        limit: Top N skills to include as graph nodes.
+        threshold: Minimum overlap/similarity score required to form an edge.
+        db: Optional SQLAlchemy database session.
+
+    Returns:
+        Dict containing list of node dicts and weighted edge dicts.
+    """
+    close_on_exit = False
+    if db is None:
+        db = SessionLocal()
+        close_on_exit = True
+
+    try:
+        # 1. Fetch top skills
+        top_skills = _get_top_skills(db, limit)
+        if not top_skills:
+            return {"nodes": [], "edges": []}
+
+        skill_map: Dict[int, Tuple[str, int]] = {
+            s_id: (name, mentions) for s_id, name, mentions in top_skills
+        }
+        target_ids = list(skill_map.keys())
+
+        # Build node objects
+        nodes = [
+            {"id": name, "label": name, "mention_count": mentions}
+            for _, name, mentions in top_skills
+        ]
+
+        # 2. Relational Co-occurrence Query directly in SQL Engine
+        # Self-join JobSkill on job_id to find shared postings between target skill pairs
+        js1 = JobSkill
+        js2 = aliased(JobSkill)
+
+        co_occurrence_rows = (
+            db.query(
+                js1.skill_id.label("skill_a"),
+                js2.skill_id.label("skill_b"),
+                func.count(js1.job_id).label("shared_count"),
+            )
+            .join(js2, js1.job_id == js2.job_id)
+            .filter(
+                js1.skill_id.in_(target_ids),
+                js2.skill_id.in_(target_ids),
+                js1.skill_id < js2.skill_id,  # Symmetric pair constraint (A < B)
+            )
+            .group_by(js1.skill_id, js2.skill_id)
+            .all()
+        )
+
+        # 3. Compute normalized edge weights
+        edges = []
+        for id_a, id_b, shared_count in co_occurrence_rows:
+            name_a, mentions_a = skill_map[id_a]
+            name_b, mentions_b = skill_map[id_b]
+
+            # Overlap Coefficient: shared / min(mentions_a, mentions_b)
+            # Prevents ultra-common skills (e.g. Python) from drowning out frameworks (e.g. PyTorch)
+            min_mentions = min(mentions_a, mentions_b)
+            overlap_score = shared_count / min_mentions if min_mentions > 0 else 0.0
+
+            # Standard Jaccard Similarity: shared / (a + b - shared)
+            union_count = mentions_a + mentions_b - shared_count
+            jaccard_score = shared_count / union_count if union_count > 0 else 0.0
+
+            # Use overlap_score as primary edge weight for robust framework connectivity
+            if overlap_score >= threshold:
+                edges.append({
+                    "source": name_a,
+                    "target": name_b,
+                    "weight": round(overlap_score, 3),
+                    "jaccard_weight": round(jaccard_score, 3),
+                    "shared_posting_count": shared_count,
+                })
+
+        # Sort edges by strength
+        edges.sort(key=lambda e: e["weight"], reverse=True)
+
+        return {"nodes": nodes, "edges": edges}
+
+    finally:
+        if close_on_exit:
+            db.close()
 
 
-def build_skill_co_occurrence_graph(limit: int = TOP_N_SKILLS) -> dict:
-    top = _top_skills(limit)
-    job_id_sets = _job_id_sets_for([skill_id for skill_id, _, _ in top])
-
-    nodes = [{"id": name, "label": name, "mention_count": mentions} for _, name, mentions in top]
-
-    edges = []
-    for (id_a, name_a, _), (id_b, name_b, _) in combinations(top, 2):
-        set_a, set_b = job_id_sets[id_a], job_id_sets[id_b]
-        if not set_a or not set_b:
-            continue
-        intersection = set_a & set_b
-        union = set_a | set_b
-        similarity = len(intersection) / len(union) if union else 0
-        if similarity >= EDGE_SIMILARITY_THRESHOLD:
-            edges.append({
-                "source": name_a,
-                "target": name_b,
-                "weight": round(similarity, 3),
-                "shared_posting_count": len(intersection),
-            })
-
-    return {"nodes": nodes, "edges": edges}
+if __name__ == "__main__":
+    # Test execution
+    graph = build_skill_co_occurrence_graph(limit=10, threshold=0.05)
+    print(f"\n--- Skill Co-occurrence Graph Generated ---")
+    print(f"Nodes: {len(graph['nodes'])}")
+    print(f"Edges: {len(graph['edges'])}")
+    for edge in graph["edges"][:5]:
+        print(f" - {edge['source']} <-> {edge['target']} | Overlap: {edge['weight']} | Shared: {edge['shared_posting_count']}")

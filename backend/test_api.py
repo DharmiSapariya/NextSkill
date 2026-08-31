@@ -237,13 +237,13 @@ def test_top_companies():
 def _make_admin_headers():
     # No self-service way to become an admin by design — tests provision one
     # directly, the same way a real deployment would (a manual DB update).
-    from models import User as UserModel, session
+    from models import User as UserModel, db_session
 
     email = f"admin-{uuid.uuid4().hex[:12]}@nextskill.dev"
     signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
-    user = session.query(UserModel).filter_by(email=email).first()
+    user = db_session.query(UserModel).filter_by(email=email).first()
     user.is_admin = True
-    session.commit()
+    db_session.commit()
     return {"Authorization": f"Bearer {signup.json()['access_token']}"}
 
 
@@ -416,13 +416,13 @@ def test_trend_window_advances_with_new_data():
     from datetime import timedelta
 
     from api import _trend_window
-    from models import Company, Job, session
+    from models import Company, Job, db_session
 
     before = _trend_window()
 
-    company = session.query(Company).first()
+    company = db_session.query(Company).first()
     later_date = before[2] + timedelta(days=5)  # 5 days past the current window's end
-    session.add(Job(
+    db_session.add(Job(
         external_id=f"trend-window-test-{uuid.uuid4().hex[:12]}",
         title="Software Engineer",
         company_id=company.id,
@@ -432,7 +432,7 @@ def test_trend_window_advances_with_new_data():
         source="test",
         posted_date=later_date,
     ))
-    session.commit()
+    db_session.commit()
 
     after = _trend_window()
     assert after[2] == later_date + timedelta(days=1)
@@ -538,7 +538,7 @@ def test_recommend_evidence_includes_real_postings(auth_headers):
 
 
 def test_recommend_evidence_respects_tier_limit():
-    from models import User as UserModel, session as db_session
+    from models import User as UserModel, db_session
 
     email = f"evidence-tier-{uuid.uuid4().hex[:12]}@nextskill.dev"
     signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
@@ -568,7 +568,7 @@ def test_recommend_evidence_respects_tier_limit():
 
 
 def test_history_limit_capped_for_free_tier_but_not_pro():
-    from models import RecommendationHistory, User as UserModel, session as db_session
+    from models import RecommendationHistory, User as UserModel, db_session
 
     email = f"history-tier-{uuid.uuid4().hex[:12]}@nextskill.dev"
     signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
@@ -601,7 +601,7 @@ def test_me_reflects_tier_and_admin_status_after_provisioning():
     # Before this, a user upgraded to pro (or granted admin) had no way to
     # see that via the API at all — only indirectly, e.g. by noticing
     # /recommend/evidence started returning more evidence than before.
-    from models import User as UserModel, session as db_session
+    from models import User as UserModel, db_session
 
     email = f"me-tier-{uuid.uuid4().hex[:12]}@nextskill.dev"
     signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
@@ -889,7 +889,7 @@ def test_digest_reports_no_change_for_new_user():
 def test_digest_reports_a_real_top_skill_change():
     from datetime import datetime, timezone
     from api import limiter
-    from models import RecommendationHistory, User as UserModel, session as db_session
+    from models import RecommendationHistory, User as UserModel, db_session
 
     limiter.reset()  # shared /auth/signup counter — same caveat as the rate-limit tests
     email = f"digest-change-{uuid.uuid4().hex[:12]}@nextskill.dev"

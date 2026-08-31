@@ -1,123 +1,223 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, Date, DateTime, ForeignKey, Numeric, JSON, UniqueConstraint, Boolean
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
-from datetime import datetime, timezone
 import os
+from datetime import datetime, timezone
 from dotenv import load_dotenv
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
+    func,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import (
+    declarative_base,
+    relationship,
+    scoped_session,
+    sessionmaker,
+)
 
 load_dotenv()
 
 DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
+    "DATABASE_URL",
+    "postgresql+psycopg2://jobintel:localdevpassword@localhost:5433/job_market"
 )
 
 Base = declarative_base()
 
+
 class Company(Base):
     __tablename__ = "companies"
-    __table_args__ = (UniqueConstraint("name", name="uq_companies_name"),)
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_companies_name"),
+    )
+
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(String(255), nullable=False)
+
+    # Relationships
+    jobs = relationship("Job", back_populates="company", cascade="all, delete-orphan")
+
 
 class Job(Base):
     __tablename__ = "jobs"
-    id = Column(Integer, primary_key=True)
-    external_id = Column(String, unique=True, nullable=False)
-    title = Column(String, nullable=False)
-    company_id = Column(Integer, ForeignKey("companies.id"))
-    location = Column(String)
-    description = Column(Text)
-    category = Column(String)
-    source = Column(String, nullable=False)
-    posted_date = Column(Date, index=True)
-    salary_min = Column(Numeric, nullable=True)
-    salary_max = Column(Numeric, nullable=True)
+    __table_args__ = (
+        Index("ix_jobs_title_source", "title", "source"),
+        Index("ix_jobs_company_id", "company_id"),
+    )
 
-    company = relationship("Company")
+    id = Column(Integer, primary_key=True)
+    external_id = Column(String(255), unique=True, nullable=False, index=True)
+    title = Column(String(255), nullable=False, index=True)
+    company_id = Column(
+        Integer, ForeignKey("companies.id", ondelete="SET NULL"), nullable=True
+    )
+    location = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
+    category = Column(String(100), nullable=True)
+    source = Column(String(50), nullable=False, index=True)
+    posted_date = Column(Date, nullable=True, index=True)
+    salary_min = Column(Numeric(12, 2), nullable=True)
+    salary_max = Column(Numeric(12, 2), nullable=True)
+
+    # Relationships
+    company = relationship("Company", back_populates="jobs")
+    job_skills = relationship("JobSkill", back_populates="job", cascade="all, delete-orphan")
+    saved_by_users = relationship("SavedJob", back_populates="job", cascade="all, delete-orphan")
+
 
 class Skill(Base):
     __tablename__ = "skills"
+
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
+    name = Column(String(100), unique=True, nullable=False, index=True)
+
+    # Relationships
+    job_skills = relationship("JobSkill", back_populates="skill", cascade="all, delete-orphan")
+
 
 class JobSkill(Base):
     __tablename__ = "job_skills"
-    __table_args__ = (UniqueConstraint("job_id", "skill_id", name="uq_job_skills_job_id_skill_id"),)
+    __table_args__ = (
+        UniqueConstraint("job_id", "skill_id", name="uq_job_skills_job_id_skill_id"),
+    )
+
     id = Column(Integer, primary_key=True)
-    # No separate index=True on job_id: the unique constraint above already
-    # creates a composite (job_id, skill_id) index, which Postgres can use
-    # for job_id-only lookups via the leftmost-prefix rule.
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
-    skill_id = Column(Integer, ForeignKey("skills.id"), nullable=False, index=True)
+    job_id = Column(
+        Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    skill_id = Column(
+        Integer, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    # Relationships
+    job = relationship("Job", back_populates="job_skills")
+    skill = relationship("Skill", back_populates="job_skills")
+
 
 class User(Base):
     __tablename__ = "users"
+
     id = Column(Integer, primary_key=True)
-    email = Column(String, unique=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    skills = Column(JSON, nullable=False, default=list)
-    is_admin = Column(Boolean, nullable=False, default=False)
-    # No payment processing exists (or is planned to be built) as part of
-    # this — that's a real separate integration. This is the access-control
-    # plumbing a monetization story would sit behind, same as is_admin: no
-    # self-service upgrade endpoint, "pro" is set the same way "admin" is.
-    tier = Column(String, nullable=False, default="free")
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    skills = Column(JSONB, nullable=False, server_default="[]")
+    is_admin = Column(Boolean, nullable=False, server_default="false")
+    tier = Column(String(50), nullable=False, server_default="free")
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    # Relationships
+    history = relationship(
+        "RecommendationHistory", back_populates="user", cascade="all, delete-orphan"
+    )
+    shared_reports = relationship(
+        "SharedReport", back_populates="user", cascade="all, delete-orphan"
+    )
+    saved_jobs = relationship(
+        "SavedJob", back_populates="user", cascade="all, delete-orphan"
+    )
+
 
 class RecommendationHistory(Base):
-    """One row per /recommend or /recommend/evidence call — lets a user see
-    how their skill gap for a role has changed over time, not just a single
-    point-in-time snapshot."""
     __tablename__ = "recommendation_history"
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    target_role = Column(String, nullable=False)
-    resolved_role = Column(String, nullable=False)
-    skills_at_time = Column(JSON, nullable=False)
-    recommendations = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False, index=True)
 
-    user = relationship("User")
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_role = Column(String(255), nullable=False)
+    resolved_role = Column(String(255), nullable=False)
+    skills_at_time = Column(JSONB, nullable=False)
+    recommendations = Column(JSONB, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        index=True,
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="history")
+
 
 class SharedReport(Base):
-    """A user-chosen publicly-viewable snapshot of one RecommendationHistory
-    entry — Phase 4's "shareable public skill-report pages," a link instead
-    of a login-gated result. Deliberately a separate table and an explicit
-    action (POST /auth/me/history/{id}/share), not every /recommend call
-    auto-shareable: a user's full history is private by default, only what
-    they choose to publish is public."""
     __tablename__ = "shared_reports"
-    id = Column(Integer, primary_key=True)
-    token = Column(String, unique=True, nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    target_role = Column(String, nullable=False)
-    resolved_role = Column(String, nullable=False)
-    skills_at_time = Column(JSON, nullable=False)
-    recommendations = Column(JSON, nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
-    user = relationship("User")
+    id = Column(Integer, primary_key=True)
+    token = Column(String(100), unique=True, nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    target_role = Column(String(255), nullable=False)
+    resolved_role = Column(String(255), nullable=False)
+    skills_at_time = Column(JSONB, nullable=False)
+    recommendations = Column(JSONB, nullable=False)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="shared_reports")
+
 
 class SavedJob(Base):
-    """A user's bookmarked job posting — lets someone come back to a
-    listing later without re-searching for it every time."""
     __tablename__ = "saved_jobs"
-    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_saved_jobs_user_id_job_id"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "job_id", name="uq_saved_jobs_user_id_job_id"),
+    )
+
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    job_id = Column(Integer, ForeignKey("jobs.id"), nullable=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id = Column(
+        Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
 
-    user = relationship("User")
-    job = relationship("Job")
+    # Relationships
+    user = relationship("User", back_populates="saved_jobs")
+    job = relationship("Job", back_populates="saved_by_users")
 
-engine = create_engine(DATABASE_URL)
-Session = sessionmaker(bind=engine)
-session = Session()
+
+# Database Connection Factory
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=10, max_overflow=20)
+
+# Local session factory for request-scoped or task-scoped sessions
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Scoped session for thread-safe CLI / background worker execution
+db_session = scoped_session(SessionLocal)
+
+
+def get_db():
+    """FastAPI Dependency Injection for Request Session Lifecycle."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 if __name__ == "__main__":
-    # Quick local/throwaway-DB setup only (e.g. seed_test_data.py, fresh dev DB).
-    # A real deployment — anywhere the schema needs to evolve without dropping
-    # data — goes through Alembic instead: `cd backend && alembic upgrade head`.
-    # See migrations/.
     Base.metadata.create_all(engine)
-    print("Tables created successfully")
+    print("Database tables and indexes created successfully with cascade safety.")

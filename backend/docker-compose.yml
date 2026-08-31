@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: jobintel
       POSTGRES_PASSWORD: localdevpassword
@@ -17,8 +18,11 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
+    volumes:
+      - redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -27,6 +31,7 @@ services:
 
   api:
     build: .
+    restart: unless-stopped
     environment:
       SENTRY_DSN: ${SENTRY_DSN:-}
       DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@db:5432/job_market
@@ -40,8 +45,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      # No curl/wget in the python:3.12-slim base image — urllib is already there.
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -49,15 +53,21 @@ services:
 
   scheduler:
     build: .
+    restart: unless-stopped
     command: python scheduler.py
     environment:
+      SENTRY_DSN: ${SENTRY_DSN:-}
       DATABASE_URL: postgresql+psycopg2://jobintel:localdevpassword@db:5432/job_market
+      REDIS_URL: redis://redis:6379/0
       ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
       ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
       INGESTION_CRON: ${INGESTION_CRON:-0 3 * * *}
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   pgdata:
+  redisdata:

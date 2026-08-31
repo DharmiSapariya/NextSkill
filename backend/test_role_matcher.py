@@ -1,43 +1,42 @@
 """Tests for semantic role resolution (role_matcher.py).
 
 Split into two groups:
-- Alias-path and exact-match tests: pure logic, no network, always run.
-- Embedding-path tests: need to download the sentence-transformer model from
-  HuggingFace on first run — need real internet access to huggingface.co.
-  Marked to skip automatically if that's unavailable (e.g. this project's dev
-  sandbox blocks egress to huggingface.co) rather than failing the whole
-  suite over an environment constraint unrelated to the code's correctness.
-
-Real numbers from the first CI run that actually exercised this (network
-was reachable there, unlike the sandbox this was developed in) — this is why
-ROLE_ALIASES and SIMILARITY_THRESHOLD (0.6, not the original 0.55) look the
-way they do:
-    'SRE' vs 'site reliability engineer'          -> similarity 0.248 (too low to ever thread a threshold)
-    'React Developer' vs 'frontend developer'      -> similarity 0.548 (just under the original 0.55)
-    'Growth Marketing Manager' vs 'product manager' -> similarity 0.576 (false positive at 0.55)
+- Fast unit tests (Exact matches, explicit aliases, and mocked vector similarity).
+- Live model integration tests (requires network connectivity to HuggingFace hub).
 """
+
+from unittest.mock import patch
 import pytest
 
 from role_matcher import resolve_role
 
 
-def _model_available():
+def _check_huggingface_model_accessible() -> bool:
+    """Lazy evaluation helper to detect offline environment constraints."""
     try:
-        probe = resolve_role("ML Engineer")  # not an alias or exact match — forces a real embedding call
-        return probe["similarity"] is not None
+        probe = resolve_role("ML Engineer")
+        return probe.get("similarity") is not None
     except Exception:
         return False
 
 
-needs_model = pytest.mark.skipif(
-    not _model_available(),
-    reason="sentence-transformers model unreachable (no network access to huggingface.co in this environment)",
+# Skip marker evaluated lazily when integration specs run
+requires_hf_model = pytest.mark.skipif(
+    not _check_huggingface_model_accessible(),
+    reason="SentenceTransformer model unreachable — skipping live embedding tests.",
 )
 
 
+# --- Pure Logic & Alias Tests (Fast, Network-Free) ---
+
 def test_exact_match_short_circuits_without_embedding():
+    """Verifies exact string equality bypassing vector embedding calls."""
     result = resolve_role("Data Scientist")
-    assert result == {"resolved": "data scientist", "matched_semantically": False, "similarity": None}
+    assert result == {
+        "resolved": "data scientist",
+        "matched_semantically": False,
+        "similarity": None,
+    }
 
 
 @pytest.mark.parametrize(
@@ -49,16 +48,38 @@ def test_exact_match_short_circuits_without_embedding():
     ],
 )
 def test_known_aliases_resolve_without_the_embedding_model(query, expected_role):
-    """ROLE_ALIASES in role_matcher.py — cases the embedding model demonstrably
-    doesn't handle well on its own (see this file's module docstring for the
-    real numbers that motivated adding them)."""
+    """Verifies domain alias mapping overrides without invoking embedding models."""
     result = resolve_role(query)
     assert result["resolved"] == expected_role
     assert result["matched_semantically"] is True
-    assert result["similarity"] is None  # alias path, not an embedding comparison
+    assert result["similarity"] is None
 
 
-@needs_model
+def test_embedding_path_with_mocked_similarity():
+    """Verifies vector search routing and threshold decision logic using mocked embeddings."""
+    mock_embeddings = {
+        "ML Specialist": ("machine learning engineer", 0.85),
+        "Growth Specialist": ("product manager", 0.35),
+    }
+
+    def _mock_compute_similarity(query: str):
+        return mock_embeddings.get(query, (None, 0.0))
+
+    with patch("role_matcher._find_best_vector_match", side_effect=_mock_compute_similarity):
+        # Above threshold match
+        high_sim = resolve_role("ML Specialist")
+        assert high_sim["resolved"] == "machine learning engineer"
+        assert high_sim["matched_semantically"] is True
+        assert high_sim["similarity"] == 0.85
+
+        # Below threshold match (unresolved fallback)
+        low_sim = resolve_role("Growth Specialist")
+        assert low_sim["matched_semantically"] is False
+
+
+# --- Live Transformer Model Integration Specs ---
+
+@requires_hf_model
 @pytest.mark.parametrize(
     "query,expected_role",
     [
@@ -67,23 +88,21 @@ def test_known_aliases_resolve_without_the_embedding_model(query, expected_role)
         ("Backend Dev", "backend developer"),
     ],
 )
-def test_common_phrasings_resolve_via_the_embedding_model(query, expected_role):
+def test_common_phrasings_resolve_via_live_embedding_model(query, expected_role):
+    """Integration check ensuring live model yields expected role matches given SIMILARITY_THRESHOLD."""
     result = resolve_role(query)
     assert result["resolved"] == expected_role, (
         f"{query!r} resolved to {result['resolved']!r} (similarity={result['similarity']}), "
-        f"expected {expected_role!r} — SIMILARITY_THRESHOLD in role_matcher.py may need tuning"
+        f"expected {expected_role!r} — check SIMILARITY_THRESHOLD tuning."
     )
     assert result["matched_semantically"] is True
 
 
-@needs_model
+@requires_hf_model
 def test_unrelated_query_does_not_force_a_match():
+    """Integration check verifying out-of-domain queries do not yield false positive matches."""
     result = resolve_role("Growth Marketing Manager")
-    # Nothing in TRACKED_ROLES is actually close to this — it should either
-    # stay unresolved (similarity below threshold) or, if it does cross the
-    # threshold, that's a real signal the threshold is set too low.
-    if result["matched_semantically"]:
-        pytest.fail(
-            f"'Growth Marketing Manager' incorrectly matched {result['resolved']!r} "
-            f"(similarity={result['similarity']}) — SIMILARITY_THRESHOLD is likely too low"
-        )
+    assert not result["matched_semantically"], (
+        f"'Growth Marketing Manager' incorrectly matched {result.get('resolved')!r} "
+        f"(similarity={result.get('similarity')}) — SIMILARITY_THRESHOLD is too low."
+    )

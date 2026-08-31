@@ -1,8 +1,38 @@
-.env
-.venv
+# Python bytecode & cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment files & virtualenvs
+.env
+.env.*
+!.env.example
+.venv/
+env/
+venv/
+
+# Machine learning & model storage
 model_artifacts/
-.git
+*.joblib
+*.pkl
+*.h5
+*.pt
+*.onnx
+
+# Data & Config files
 *.json
+!.vscode/*.json
+
+# Git & Version Control
+.git/
+.gitignore
+
+# OS & Editor specific
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

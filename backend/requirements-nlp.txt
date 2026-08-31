@@ -1,8 +1,14 @@
-# Only needed for the NLP skill-extraction pipeline (extract_skillner.py, test_skillner.py) —
-# not required to run the API itself. Kept separate so the API image stays small.
+# Inherit main application dependencies
 -r requirements.txt
-spacy>=3.7
-skillNer>=1.0.3
 
-# after installing, fetch the spaCy model:
-#   python -m spacy download en_core_web_lg
+# NLP Engine and Skill Extraction
+spacy>=3.7.0,<4.0.0
+skillNer>=1.0.3,<2.0.0
+
+# Supporting NLP libraries (required by spaCy / skillNer pipeline)
+scikit-learn>=1.4.0,<2.0.0
+nltk>=3.8.1,<4.0.0
+
+# Quick-start installation commands for spaCy model dependency:
+# pip install -r requirements-nlp.txt
+# python -m spacy download en_core_web_lg

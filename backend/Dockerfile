@@ -1,27 +1,31 @@
 FROM python:3.12-slim
 
+# Prevent Python from writing .pyc files and enable unbuffered output
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    HF_HOME=/app/.cache/huggingface
+
 WORKDIR /app
+
+# Create non-privileged service user
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -s /bin/sh -m appuser
 
 COPY requirements.txt .
 
-# Install the CPU-only torch build FIRST, from PyTorch's own index, before
-# requirements.txt pulls in sentence-transformers (which depends on torch).
-# Left to the default PyPI resolver, `torch` drags in the full CUDA/GPU
-# toolkit as transitive dependencies (nvidia-cublas, nvidia-cudnn, triton,
-# cuda-toolkit, ...) — several GB of libraries this API never touches, since
-# it does CPU-only inference on a small model and this image has no GPU.
-# Once torch is already installed and satisfies sentence-transformers'
-# `torch>=2.2` constraint, the requirements.txt install below leaves it alone
-# instead of trying to replace it.
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir -r requirements.txt
+# Install CPU-only torch to bypass standard multi-GB CUDA dependency download
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Pre-download the semantic role-matching model at build time — otherwise the
-# first request that needs it stalls on a ~80MB download (or fails outright
-# on a network-restricted host).
+# Pre-download the HuggingFace model directly into shared app cache path
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
+# Copy application files and grant permissions to non-root user
 COPY . .
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root execution context
+USER appuser
 
 EXPOSE 8000
 
