@@ -1027,12 +1027,16 @@ def skill_trend(skill_name: str):
 
 
 def _record_recommendation_history(user, target_role, resolved_role, skills, results):
+    # The recommendations column holds the flat gap list itself (what
+    # digest.py, recommendation_progress, and the shared-report endpoints
+    # all iterate directly) — not the wrapper dict recommend_skills_data()
+    # returns alongside it (target_role, total_market_jobs).
     db_session.add(RecommendationHistory(
         user_id=user.id,
         target_role=target_role,
         resolved_role=resolved_role,
         skills_at_time=skills,
-        recommendations=results,
+        recommendations=results.get("recommendations", []),
     ))
     db_session.commit()
 
@@ -1045,10 +1049,10 @@ def recommend(request: Request, body: RecommendRequest, current_user: User = Dep
     results = recommend_skills_data(skills, role_resolution["resolved"])
     _record_recommendation_history(current_user, body.target_role, role_resolution["resolved"], skills, results)
     return {
+        **results,
         "target_role": body.target_role,
         "role_resolution": role_resolution,
         "your_skills": skills,
-        "recommendations": results,
     }
 
 
@@ -1068,10 +1072,10 @@ def recommend_with_evidence(request: Request, body: RecommendRequest, current_us
     results = recommend_skills_with_evidence(skills, role_resolution["resolved"], evidence_limit=evidence_limit)
     _record_recommendation_history(current_user, body.target_role, role_resolution["resolved"], skills, results)
     return {
+        **results,
         "target_role": body.target_role,
         "role_resolution": role_resolution,
         "your_skills": skills,
-        "recommendations": results,
         "tier": current_user.tier,
     }
 

@@ -91,42 +91,37 @@ class SemanticRoleMatcher:
 
         query_clean = query.strip().lower()
 
-        # 1. Direct hit on tracked roles
+        # 1. Direct hit on tracked roles — a literal lookup, no embedding
+        # was computed, so similarity stays None rather than a manufactured
+        # 1.0 (which would misleadingly claim a vector comparison happened).
         if query_clean in TRACKED_ROLES:
-            return {
-                "resolved": query_clean,
-                "matched_semantically": False,
-                "similarity": 1.0,
-            }
-
-        # 2. Fast lookup via alias dictionary
-        if query_clean in ROLE_ALIASES:
-            return {
-                "resolved": ROLE_ALIASES[query_clean],
-                "matched_semantically": True,
-                "similarity": 1.0,
-            }
-
-        # 3. Model lazy load check
-        self._ensure_model_loaded()
-        if self.model is None or self.role_embeddings is None:
             return {
                 "resolved": query_clean,
                 "matched_semantically": False,
                 "similarity": None,
             }
 
-        # 4. Vector similarity evaluation
-        from sentence_transformers import util
+        # 2. Fast lookup via alias dictionary — likewise no embedding call.
+        if query_clean in ROLE_ALIASES:
+            return {
+                "resolved": ROLE_ALIASES[query_clean],
+                "matched_semantically": True,
+                "similarity": None,
+            }
 
-        query_embedding = self.model.encode([query_clean], normalize_embeddings=True)
-        scores = util.cos_sim(query_embedding, self.role_embeddings)[0]
-        best_idx = int(scores.argmax())
-        best_score = float(scores[best_idx])
+        # 3. Vector similarity evaluation — the original (non-lowercased)
+        # query text, same as an embedding model would actually be handed.
+        matched_role, best_score = _find_best_vector_match(query.strip())
+        if matched_role is None:
+            return {
+                "resolved": query_clean,
+                "matched_semantically": False,
+                "similarity": None,
+            }
 
         if best_score >= SIMILARITY_THRESHOLD:
             return {
-                "resolved": TRACKED_ROLES[best_idx],
+                "resolved": matched_role,
                 "matched_semantically": True,
                 "similarity": round(best_score, 3),
             }
@@ -136,6 +131,26 @@ class SemanticRoleMatcher:
             "matched_semantically": False,
             "similarity": round(best_score, 3),
         }
+
+
+def _find_best_vector_match(query_clean: str) -> Tuple[Optional[str], float]:
+    """Runs the embedding model (lazy-loading it if needed) and returns the
+    single best-matching tracked role and its cosine similarity score —
+    factored out from SemanticRoleMatcher.resolve() so tests can mock the
+    model-dependent part without needing real network access to HuggingFace.
+    Returns (None, 0.0) if the model isn't available.
+    """
+    matcher = SemanticRoleMatcher.get_instance()
+    matcher._ensure_model_loaded()
+    if matcher.model is None or matcher.role_embeddings is None:
+        return None, 0.0
+
+    from sentence_transformers import util
+
+    query_embedding = matcher.model.encode([query_clean], normalize_embeddings=True)
+    scores = util.cos_sim(query_embedding, matcher.role_embeddings)[0]
+    best_idx = int(scores.argmax())
+    return TRACKED_ROLES[best_idx], float(scores[best_idx])
 
 
 # Global LRU cache layer over matcher execution

@@ -33,9 +33,10 @@ def sample_company(db_session):
 def sample_job(db_session, sample_company):
     """Factory fixture for producing an isolated Job instance linked to a Company."""
     job = Job(
+        external_id=f"job-{uuid.uuid4().hex[:12]}",
         title=f"Engineer {uuid.uuid4().hex[:8]}",
         company_id=sample_company.id,
-        seniority="mid",
+        source="test",
     )
     db_session.add(job)
     db_session.flush()

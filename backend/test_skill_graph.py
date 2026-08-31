@@ -39,6 +39,7 @@ def seed_co_occurrence_data(db_session) -> Callable[[List[Tuple[str, List[str]]]
             job = Job(
                 external_id=f"graph-test-{uuid.uuid4().hex[:8]}",
                 title=job_title,
+                source="test",
             )
             db_session.add(job)
             db_session.flush()
@@ -71,7 +72,7 @@ def test_graph_schema_and_weight_constraints(db_session, seed_co_occurrence_data
         ("Fullstack Engineer", ["JavaScript", "React", "Python"]),
     ])
 
-    graph = build_skill_co_occurrence_graph()
+    graph = build_skill_co_occurrence_graph(db=db_session)
     assert "nodes" in graph and "edges" in graph
     assert len(graph["nodes"]) >= 3
 
@@ -100,7 +101,7 @@ def test_respects_limit_parameter(db_session, seed_co_occurrence_data):
     ])
 
     limit = 5
-    graph = build_skill_co_occurrence_graph(limit=limit)
+    graph = build_skill_co_occurrence_graph(limit=limit, db=db_session)
     assert len(graph["nodes"]) <= limit
 
 
@@ -112,7 +113,7 @@ def test_nodes_are_ordered_by_mention_count_descending(db_session, seed_co_occur
         ("Job 3", ["Python"]),
     ])
 
-    graph = build_skill_co_occurrence_graph()
+    graph = build_skill_co_occurrence_graph(db=db_session)
     counts = [n["mention_count"] for n in graph["nodes"]]
     assert counts == sorted(counts, reverse=True)
 
@@ -125,7 +126,7 @@ def test_deterministic_co_occurrence_pair_resolution(db_session, seed_co_occurre
         ("Dev 3", ["JavaScript", "React", "TypeScript"]),
     ])
 
-    graph = build_skill_co_occurrence_graph()
+    graph = build_skill_co_occurrence_graph(db=db_session)
     pairs = {frozenset([e["source"], e["target"]]) for e in graph["edges"]}
     assert frozenset(["JavaScript", "React"]) in pairs
 
@@ -148,7 +149,7 @@ def test_jaccard_similarity_mathematical_correctness(db_session, seed_co_occurre
         ("Job 5", ["React"]),
     ])
 
-    graph = build_skill_co_occurrence_graph()
+    graph = build_skill_co_occurrence_graph(db=db_session)
     target_edge = None
     for edge in graph["edges"]:
         if frozenset([edge["source"], edge["target"]]) == frozenset(["JavaScript", "React"]):
@@ -162,5 +163,5 @@ def test_jaccard_similarity_mathematical_correctness(db_session, seed_co_occurre
 
 def test_empty_database_returns_empty_graph(db_session):
     """Verifies graceful handling when no skills or jobs exist in the database."""
-    graph = build_skill_co_occurrence_graph()
+    graph = build_skill_co_occurrence_graph(db=db_session)
     assert graph == {"nodes": [], "edges": []}

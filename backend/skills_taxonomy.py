@@ -138,6 +138,12 @@ class SkillExtractor:
 # Global Instance Initialization
 extractor = SkillExtractor(TAXONOMY_REGISTRY)
 
+# Flat canonical-name list — kept as a plain export for callers that just
+# want "every skill name" (e.g. resume_parser.py's regex matcher,
+# extract_skills.py's seeding query) rather than the full SkillDefinition
+# registry with its category/alias metadata.
+SKILLS_TAXONOMY: List[str] = [skill.canonical_name for skill in TAXONOMY_REGISTRY]
+
 if __name__ == "__main__":
     print(f"Taxonomy contains {len(TAXONOMY_REGISTRY)} canonical skills.")
     

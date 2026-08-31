@@ -5,12 +5,7 @@ from typing import Dict, List, Set, Tuple
 from sqlalchemy.orm import Session
 
 from models import Job, JobSkill, Skill, get_db
-from skills_taxonomy import TAXONOMY_REGISTRY
-
-# skills_taxonomy.py moved from a flat name list to TAXONOMY_REGISTRY (a
-# list of SkillDefinition) — this file only ever needed the canonical
-# names, so that's all it takes back out.
-SKILLS_TAXONOMY = [skill.canonical_name for skill in TAXONOMY_REGISTRY]
+from skills_taxonomy import SKILLS_TAXONOMY
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nextskill.taxonomy_extractor")

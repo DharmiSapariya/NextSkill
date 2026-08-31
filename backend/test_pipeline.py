@@ -36,6 +36,7 @@ def sample_job(db_session) -> Job:
         external_id=f"test-job-{uuid.uuid4().hex[:8]}",
         title="Test Engineer",
         company_id=None,
+        source="test",
     )
     db_session.add(job)
     db_session.flush()
@@ -141,6 +142,5 @@ def test_scheduler_builds_without_starting():
     from scheduler import build_scheduler
 
     scheduler = build_scheduler()
-    jobs = scheduler.get_jobs()
-    assert len(jobs) == 1
-    assert jobs[0].id == "ingestion_pipeline"
+    job_ids = {job.id for job in scheduler.get_jobs()}
+    assert job_ids == {"ingestion_pipeline", "scheduler_healthcheck"}

@@ -7,10 +7,12 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy.orm import Session
-
-# Import database models and session dependency generator
-from models import User, get_db
+# Uses the app's shared scoped session (db_session), not a fresh
+# per-request one — api.py's endpoint bodies all operate through
+# db_session, and handing them a User loaded from a different session
+# breaks the moment they try to mutate/delete/commit it (SQLAlchemy
+# refuses to attach an instance already attached elsewhere).
+from models import User, db_session
 
 logger = logging.getLogger("nextskill.auth")
 
@@ -58,7 +60,6 @@ def create_access_token(user_id: int) -> str:
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
 ) -> User:
     """Dependency that extracts and validates the JWT bearer token,
     returning the authenticated database User object.
@@ -82,8 +83,7 @@ def get_current_user(
     except (JWTError, TypeError, ValueError):
         raise unauthorized
 
-    # Query scoped per-request database session
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db_session.query(User).filter(User.id == user_id).first()
     if not user:
         raise unauthorized
         

@@ -3,7 +3,7 @@ import re
 from typing import Dict, Set, Tuple
 from sqlalchemy.orm import Session
 
-from models import Job, JobSkill, Skill, get_db
+from models import Job, JobSkill, Skill, SessionLocal
 
 logger = logging.getLogger("nextskill.extractor")
 
@@ -29,9 +29,21 @@ def _compile_skill_regex(name: str, case_sensitive: bool = False) -> re.Pattern:
     return re.compile(pattern, flags)
 
 
-def extract_supplementary_skills(db: Session) -> int:
+def extract_supplementary_skills(db: Session = None) -> int:
     """Regex-matches SUPPLEMENTARY_SKILLS against every job description using bulk operations."""
-    
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        return _extract_supplementary_skills_impl(db)
+    finally:
+        if close_db:
+            db.close()
+
+
+def _extract_supplementary_skills_impl(db: Session) -> int:
     # 1. Pre-fetch / Insert Skills in a single transaction
     all_skill_names = SUPPLEMENTARY_SKILLS_CASE_INSENSITIVE + SUPPLEMENTARY_SKILLS_CASE_SENSITIVE
     existing_skills = db.query(Skill).filter(Skill.name.in_(all_skill_names)).all()

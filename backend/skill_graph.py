@@ -104,13 +104,16 @@ def build_skill_co_occurrence_graph(
             union_count = mentions_a + mentions_b - shared_count
             jaccard_score = shared_count / union_count if union_count > 0 else 0.0
 
-            # Use overlap_score as primary edge weight for robust framework connectivity
+            # Overlap coefficient decides which edges are worth drawing at all
+            # (keeps ultra-common skills like Python from drowning out
+            # framework-level connections), but the reported weight is the
+            # standard Jaccard similarity — the number the graph's actual
+            # consumers (and its own docs/tests) are written against.
             if overlap_score >= threshold:
                 edges.append({
                     "source": name_a,
                     "target": name_b,
-                    "weight": round(overlap_score, 3),
-                    "jaccard_weight": round(jaccard_score, 3),
+                    "weight": round(jaccard_score, 3),
                     "shared_posting_count": shared_count,
                 })
 

@@ -712,7 +712,7 @@ def test_match_score_higher_for_relevant_skills(auth_headers):
     )
     assert relevant.status_code == 200
     assert irrelevant.status_code == 200
-    assert relevant.json()["sample_size"] > 0
+    assert relevant.json()["total_market_jobs"] > 0
     assert relevant.json()["match_pct"] > irrelevant.json()["match_pct"]
 
 
@@ -724,7 +724,7 @@ def test_match_score_unknown_role_returns_zero_sample(auth_headers):
     )
     assert response.status_code == 200
     data = response.json()
-    assert data["sample_size"] == 0
+    assert data["total_market_jobs"] == 0
     assert data["match_pct"] is None
 
 

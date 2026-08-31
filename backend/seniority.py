@@ -17,7 +17,10 @@ SENIORITY_PATTERNS: Dict[str, str] = {
     "senior": (
         r"(?i)\b("
         r"senior|sr\.?|principal|lead|architect|"
-        r"staff(?!\s*ing)|"  # Matches 'Staff Engineer' but avoids 'Staffing Coordinator'
+        # No lookahead needed (and Postgres regex doesn't support one anyway) —
+        # the \b...\b boundary around the whole alternation already requires a
+        # boundary right after 'staff', which 'Staffing' never has.
+        r"staff|"
         r"head\s+of|vp|director|"
         r"engineer\s+(iii|iv|v|[3-5])|developer\s+(iii|iv|v|[3-5])"
         r")\b"
@@ -72,8 +75,11 @@ def as_postgres_regex(pattern: str) -> str:
     Postgres POSIX ARE regex uses \\y for word boundaries, whereas \\b represents
     a backspace character. 
     """
-    # Remove Inline Python flag (?i) as Postgres ~* handles case insensitivity natively
-    clean_pattern = re.sub(r"^\(\?i\)", "", pattern)
+    # Remove inline Python flag (?i) — Postgres ~* handles case insensitivity
+    # natively and doesn't understand (?i) at all, so every occurrence has to
+    # go, not just one anchored at the very start (callers combine multiple
+    # SENIORITY_PATTERNS values into one pattern, each carrying its own (?i)).
+    clean_pattern = re.sub(r"\(\?i\)", "", pattern)
     return clean_pattern.replace(r"\b", r"\y")
 
 
