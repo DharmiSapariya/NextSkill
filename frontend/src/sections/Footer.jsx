@@ -20,7 +20,7 @@ export default function Footer() {
       </div>
 
       <div className="relative mt-12 h-64 md:h-80">
-        <CrowdCanvas src="/crowd/peeps-strip.png" rows={24} cols={1} className="absolute inset-0 h-full w-full" />
+        <CrowdCanvas src="/crowd/peeps-strip.png" rows={21} cols={1} className="absolute inset-0 h-full w-full" />
       </div>
 
       <div className="relative mt-12 border-t border-forest/15 px-6 py-6">
