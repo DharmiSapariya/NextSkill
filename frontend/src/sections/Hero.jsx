@@ -15,27 +15,30 @@ export default function Hero() {
       ref={heroRef}
       className="relative overflow-hidden bg-cream px-6 pb-24 pt-24 md:pb-32 md:pt-40"
     >
-      <ScrollStroke
-        scrollYProgress={scrollYProgress}
-        className="pointer-events-none absolute left-1/2 top-[40px] z-0 h-[620px] w-[620px] -translate-x-1/2 opacity-60"
-      />
-
       <div className="relative mx-auto max-w-[900px] text-center">
-        <h1 className="font-display text-[clamp(2.75rem,7vw,5rem)] font-extrabold leading-[1.08] tracking-[-0.03em] text-forest">
-          Stop{" "}
-          <span className="relative inline-block">
-            <img
-              src="/doodles/one.png"
-              alt=""
-              className="pointer-events-none absolute -inset-4 -z-10 hidden w-[calc(100%+2rem)] md:block"
-            />
-            <Highlighter action="circle" color="var(--periwinkle)" isView>
-              guessing
-            </Highlighter>
-          </span>
-          <br />
-          what to learn next.
-        </h1>
+        <div className="relative">
+          <ScrollStroke
+            scrollYProgress={scrollYProgress}
+            viewBox="440 -20 860 500"
+            strokeWidth={16}
+            className="pointer-events-none absolute left-1/2 top-[38%] z-0 h-[380px] w-[620px] -translate-x-1/2 -translate-y-1/2 opacity-70"
+          />
+          <h1 className="relative z-10 font-display text-[clamp(2.75rem,7vw,5rem)] font-extrabold leading-[1.08] tracking-[-0.03em] text-forest">
+            Stop{" "}
+            <span className="relative inline-block">
+              <img
+                src="/doodles/one.png"
+                alt=""
+                className="pointer-events-none absolute -inset-4 -z-10 hidden w-[calc(100%+2rem)] md:block"
+              />
+              <Highlighter action="circle" color="var(--periwinkle)" isView>
+                guessing
+              </Highlighter>
+            </span>
+            <br />
+            what to learn next.
+          </h1>
+        </div>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-ink">
           NextSkill turns real job postings into a clear, evidence-backed skill-gap report for{" "}
