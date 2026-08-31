@@ -10,7 +10,6 @@ import HowItWorksSection from "./sections/HowItWorksSection";
 import Evidence from "./sections/Evidence";
 import Pricing from "./sections/Pricing";
 import Footer from "./sections/Footer";
-import SeamLine from "./components/SeamLine";
 
 export default function Landing() {
   return (
@@ -19,23 +18,14 @@ export default function Landing() {
       <Navbar />
       <main>
         <Hero />
-        <SeamLine />
         <Problem />
-        <SeamLine />
         <Solution />
-        <SeamLine />
         <FeatureGrid />
-        <SeamLine />
         <SkillsCloud />
-        <SeamLine />
         <Reassurance />
-        <SeamLine />
         <HowItWorksSection />
-        <SeamLine />
         <Evidence />
-        <SeamLine />
         <Pricing />
-        <SeamLine />
       </main>
       <Footer />
     </div>
