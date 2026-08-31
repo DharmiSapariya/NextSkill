@@ -1,14 +1,28 @@
-import { Target, FileSearch, TrendingUp, BarChart3, DollarSign, GitBranch, ShieldCheck } from "lucide-react";
+import { Database, Tags, TrendingUp, FileText } from "lucide-react";
 import Highlighter from "../components/Highlighter";
-import { OrbitingCircles } from "../components/OrbitingCircles";
+import { SolarSystem } from "../components/SolarSystem";
 
-function Chip({ children }) {
-  return (
-    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-periwinkle text-forest">
-      {children}
-    </div>
-  );
-}
+const pipelineOrbits = [
+  {
+    id: "sources",
+    radiusClass: "var(--radius-inner)",
+    speed: 22,
+    items: [
+      { id: "adzuna", label: "Adzuna", color: "var(--lime)", icon: Database },
+      { id: "remoteok", label: "RemoteOK", color: "var(--lime)", icon: Database },
+    ],
+  },
+  {
+    id: "pipeline",
+    radiusClass: "var(--radius-outer)",
+    speed: 34,
+    items: [
+      { id: "taxonomy", label: "Skill Taxonomy", color: "var(--periwinkle)", icon: Tags },
+      { id: "trend", label: "Trend Model", color: "var(--periwinkle)", icon: TrendingUp },
+      { id: "report", label: "Your Report", color: "var(--periwinkle)", icon: FileText },
+    ],
+  },
+];
 
 export default function Solution() {
   return (
@@ -22,26 +36,7 @@ export default function Solution() {
         </h2>
       </div>
 
-      <div className="relative mx-auto mt-4 h-[420px] w-full max-w-2xl overflow-hidden">
-        <div className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-forest font-display text-lg font-bold text-cream">
-          NS
-        </div>
-        <OrbitingCircles radius={90} duration={22} pathColor="var(--lime)">
-          <Chip><Target className="h-4 w-4" /></Chip>
-          <Chip><FileSearch className="h-4 w-4" /></Chip>
-          <Chip><TrendingUp className="h-4 w-4" /></Chip>
-        </OrbitingCircles>
-        <OrbitingCircles radius={160} reverse duration={28} pathColor="var(--periwinkle)">
-          <Chip><BarChart3 className="h-4 w-4" /></Chip>
-          <Chip><DollarSign className="h-4 w-4" /></Chip>
-          <Chip><GitBranch className="h-4 w-4" /></Chip>
-          <Chip><ShieldCheck className="h-4 w-4" /></Chip>
-        </OrbitingCircles>
-      </div>
-
-      <p className="mx-auto mt-4 max-w-xl text-center font-kicker text-sm uppercase tracking-widest text-forest/60">
-        Adzuna + RemoteOK → Skill Taxonomy → Trend Model → Your Report
-      </p>
+      <SolarSystem className="mx-auto mt-6" orbits={pipelineOrbits} />
     </section>
   );
 }
