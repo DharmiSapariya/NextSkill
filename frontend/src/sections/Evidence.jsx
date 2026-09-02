@@ -1,11 +1,10 @@
 import Highlighter from "../components/Highlighter";
-import TextRotateScroll from "../components/TextRotateScroll";
-import DashboardMock from "../components/DashboardMock";
+import EvidenceTabs from "../components/EvidenceTabs";
 
 const evidenceItems = [
-  { label: "Software Engineer", link: "#", node: <DashboardMock variant="evidence-drilldown" label="SDE evidence" /> },
-  { label: "Data Scientist", link: "#", node: <DashboardMock variant="skill-gap-report" label="DS evidence" /> },
-  { label: "Data Analyst", link: "#", node: <DashboardMock variant="resume-upload" label="DA evidence" /> },
+  { label: "Software Engineer", variant: "evidence-drilldown" },
+  { label: "Data Scientist", variant: "skill-gap-report" },
+  { label: "Data Analyst", variant: "resume-upload" },
 ];
 
 export default function Evidence() {
@@ -26,7 +25,7 @@ export default function Evidence() {
           </p>
         </div>
 
-        <TextRotateScroll items={evidenceItems} />
+        <EvidenceTabs items={evidenceItems} />
       </div>
     </section>
   );
