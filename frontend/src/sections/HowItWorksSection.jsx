@@ -1,5 +1,5 @@
 import Highlighter from "../components/Highlighter";
-import HowItWorks from "../components/HowItWorks";
+import ScrollRevealCards from "../components/ScrollRevealCards";
 import ImageRevealSection from "../components/ImageRevealSection";
 import DashboardMock from "../components/DashboardMock";
 
@@ -66,7 +66,7 @@ export default function HowItWorksSection() {
       </div>
 
       <div className="relative mx-auto mt-16 max-w-5xl">
-        <HowItWorks steps={steps} />
+        <ScrollRevealCards steps={steps} />
       </div>
 
       <div className="relative mt-24 bg-forest-2 py-4">
