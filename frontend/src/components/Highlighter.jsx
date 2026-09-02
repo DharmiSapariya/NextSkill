@@ -20,7 +20,7 @@ export default function Highlighter({
   // Circles need a generous, even halo around the word; underlines and
   // highlights sit close to the text — so the default depends on action
   // unless a caller explicitly overrides it.
-  const resolvedPadding = padding ?? (action === "circle" ? 12 : 7);
+  const resolvedPadding = padding ?? (action === "circle" ? 20 : 7);
 
   useEffect(() => {
     const el = ref.current;

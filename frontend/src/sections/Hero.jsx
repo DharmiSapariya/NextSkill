@@ -30,7 +30,7 @@ export default function Hero() {
             typeSpeed={60}
             deleteSpeed={30}
             pauseDelay={1400}
-            className="font-semibold text-forest"
+            className="inline-block min-w-[210px] whitespace-nowrap text-left font-semibold text-forest"
           />{" "}
           — free, and with the receipts to prove every recommendation.
         </p>
