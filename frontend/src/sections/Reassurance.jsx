@@ -1,4 +1,4 @@
-import Highlighter from "../components/Highlighter";
+import DoodleCircle from "../components/DoodleCircle";
 
 export default function Reassurance() {
   return (
@@ -6,9 +6,7 @@ export default function Reassurance() {
       <div className="mx-auto max-w-[760px] text-center">
         <h2 className="font-display text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-tight text-forest">
           It doesn&apos;t matter if you&apos;re{" "}
-          <Highlighter action="circle" color="var(--lime)" isView>
-            just starting out
-          </Highlighter>{" "}
+          <DoodleCircle color="lime">just starting out</DoodleCircle>{" "}
           or ten years into your career.
         </h2>
 

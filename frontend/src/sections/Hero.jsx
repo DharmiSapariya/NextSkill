@@ -1,4 +1,4 @@
-import Highlighter from "../components/Highlighter";
+import DoodleCircle from "../components/DoodleCircle";
 import TypingAnimation from "../components/TypingAnimation";
 import DashboardMock from "../components/DashboardMock";
 
@@ -7,17 +7,7 @@ export default function Hero() {
     <section id="top" className="relative bg-cream px-6 pb-24 pt-24 md:pb-32 md:pt-40">
       <div className="relative mx-auto max-w-[900px] text-center">
         <h1 className="font-display text-[clamp(2.75rem,7vw,5rem)] font-extrabold leading-[1.08] tracking-[-0.03em] text-forest">
-          Stop{" "}
-          <span className="relative inline-block">
-            <img
-              src="/doodles/one.png"
-              alt=""
-              className="pointer-events-none absolute -inset-4 -z-10 hidden w-[calc(100%+2rem)] md:block"
-            />
-            <Highlighter action="circle" color="var(--periwinkle)" isView>
-              guessing
-            </Highlighter>
-          </span>
+          Stop <DoodleCircle color="periwinkle">guessing</DoodleCircle>
           <br />
           what to learn next.
         </h1>
