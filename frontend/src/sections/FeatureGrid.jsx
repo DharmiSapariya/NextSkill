@@ -1,36 +1,26 @@
 import Highlighter from "../components/Highlighter";
-import ScrollRevealGrid from "../components/ScrollRevealGrid";
+import Carousel006 from "../components/Carousel006";
 
 const items = [
   {
-    kicker: "( 01 )",
     title: "Skill-Gap Recommendations",
-    description:
-      "Ranked by real market demand across thousands of postings — not a generic top-10 list.",
+    description: "Ranked by real market demand across thousands of postings — not a generic top-10 list.",
     illustration: "/illustrations/19n.png",
-    span: "md:col-span-2",
   },
   {
-    kicker: "( 02 )",
     title: "Evidence, Not a Black Box",
     description: "Click into any recommendation and see the postings behind it.",
     illustration: "/illustrations/7n.png",
-    span: "md:col-span-1",
   },
   {
-    kicker: "( 03 )",
     title: "Resume → Match Score",
     description: "Upload your resume for an auto-parsed skill profile and a statistical match score.",
     illustration: "/illustrations/13.n.png",
-    span: "md:col-span-1",
   },
   {
-    kicker: "( 04 )",
     title: "Salary Prediction & Role Graph",
-    description:
-      "See predicted salary ranges and explore role-transition paths built from skill co-occurrence.",
+    description: "See predicted salary ranges and explore role-transition paths built from skill co-occurrence.",
     illustration: "/illustrations/3n.png",
-    span: "md:col-span-2",
   },
 ];
 
@@ -53,8 +43,8 @@ export default function FeatureGrid() {
         </a>
       </div>
 
-      <div className="mx-auto mt-14 max-w-5xl">
-        <ScrollRevealGrid items={items} />
+      <div className="mx-auto mt-10 max-w-5xl">
+        <Carousel006 items={items} />
       </div>
     </section>
   );
