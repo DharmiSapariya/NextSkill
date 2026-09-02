@@ -42,7 +42,7 @@ export default function Carousel006({ items, className, loop = true }) {
     <Carousel
       setApi={setApi}
       className={cn("w-full", className)}
-      opts={{ loop, slidesToScroll: 1, align: "start" }}
+      opts={{ loop, slidesToScroll: 1, align: "start", containScroll: "keepSnaps" }}
     >
       <CarouselContent className="flex h-[440px] w-full">
         {items.map((item, index) => (
