@@ -12,10 +12,30 @@ import { Carousel, CarouselContent, CarouselItem } from "./ui/carousel";
 export default function Carousel006({ items, className, loop = true }) {
   const [api, setApi] = useState();
   const [current, setCurrent] = useState(0);
+  // Embla's align:"start" pages by however many cards fit per view, so at
+  // wide viewports fewer scroll positions exist than there are items (e.g.
+  // 4 items with ~3 visible per view is only 2 real pages). Track the
+  // actual snap count instead of assuming one dot per item, or "next"/dots
+  // point at positions that don't exist and the carousel looks stuck.
+  const [snapCount, setSnapCount] = useState(items.length);
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
 
   useEffect(() => {
     if (!api) return;
-    api.on("select", () => setCurrent(api.selectedScrollSnap()));
+    const onChange = () => {
+      setSnapCount(api.scrollSnapList().length);
+      setCurrent(api.selectedScrollSnap());
+      setCanScrollPrev(api.canScrollPrev());
+      setCanScrollNext(api.canScrollNext());
+    };
+    onChange();
+    api.on("select", onChange);
+    api.on("reInit", onChange);
+    return () => {
+      api.off("select", onChange);
+      api.off("reInit", onChange);
+    };
   }, [api]);
 
   return (
@@ -66,15 +86,16 @@ export default function Carousel006({ items, className, loop = true }) {
           type="button"
           aria-label="Previous slide"
           onClick={() => api?.scrollPrev()}
-          className="rounded-full bg-forest/10 p-2 transition-colors hover:bg-forest/20"
+          disabled={!canScrollPrev}
+          className="rounded-full bg-forest/10 p-2 transition-colors hover:bg-forest/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-forest/10"
         >
           <ChevronLeft className="h-5 w-5 text-forest" />
         </button>
 
         <div className="flex items-center justify-center gap-2">
-          {items.map((item, index) => (
+          {Array.from({ length: snapCount }).map((_, index) => (
             <button
-              key={item.title}
+              key={index}
               type="button"
               onClick={() => api?.scrollTo(index)}
               className={cn(
@@ -90,7 +111,8 @@ export default function Carousel006({ items, className, loop = true }) {
           type="button"
           aria-label="Next slide"
           onClick={() => api?.scrollNext()}
-          className="rounded-full bg-forest/10 p-2 transition-colors hover:bg-forest/20"
+          disabled={!canScrollNext}
+          className="rounded-full bg-forest/10 p-2 transition-colors hover:bg-forest/20 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-forest/10"
         >
           <ChevronRight className="h-5 w-5 text-forest" />
         </button>
