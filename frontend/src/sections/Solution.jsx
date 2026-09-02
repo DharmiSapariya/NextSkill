@@ -1,27 +1,16 @@
 import { Database, Tags, TrendingUp, FileText } from "lucide-react";
 import DoodleCircle from "../components/DoodleCircle";
-import { SolarSystem } from "../components/SolarSystem";
+import PipelineFlow from "../components/PipelineFlow";
 
-const pipelineOrbits = [
-  {
-    id: "sources",
-    radiusClass: "var(--radius-inner)",
-    speed: 22,
-    items: [
-      { id: "adzuna", label: "Adzuna", color: "var(--lime)", icon: Database },
-      { id: "remoteok", label: "RemoteOK", color: "var(--lime)", icon: Database },
-    ],
-  },
-  {
-    id: "pipeline",
-    radiusClass: "var(--radius-outer)",
-    speed: 34,
-    items: [
-      { id: "taxonomy", label: "Skill Taxonomy", color: "var(--periwinkle)", icon: Tags },
-      { id: "trend", label: "Trend Model", color: "var(--periwinkle)", icon: TrendingUp },
-      { id: "report", label: "Your Report", color: "var(--periwinkle)", icon: FileText },
-    ],
-  },
+const sources = [
+  { id: "adzuna", label: "Adzuna", color: "var(--lime)", icon: Database },
+  { id: "remoteok", label: "RemoteOK", color: "var(--lime)", icon: Database },
+];
+
+const outputs = [
+  { id: "taxonomy", label: "Skill Taxonomy", color: "var(--periwinkle)", icon: Tags },
+  { id: "trend", label: "Trend Model", color: "var(--periwinkle)", icon: TrendingUp },
+  { id: "report", label: "Your Report", color: "var(--periwinkle)", icon: FileText },
 ];
 
 export default function Solution() {
@@ -34,7 +23,7 @@ export default function Solution() {
         </h2>
       </div>
 
-      <SolarSystem className="mx-auto mt-6" orbits={pipelineOrbits} />
+      <PipelineFlow className="mt-16" sources={sources} outputs={outputs} />
     </section>
   );
 }
