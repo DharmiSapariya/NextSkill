@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "../lib/cn";
 import { Carousel, CarouselContent, CarouselItem } from "./ui/carousel";
@@ -48,19 +48,15 @@ export default function Carousel006({ items, className, loop = true }) {
                 />
               </div>
             </motion.div>
-            <AnimatePresence mode="wait">
-              {current === index && (
-                <motion.div
-                  initial={{ opacity: 0, filter: "blur(10px)" }}
-                  animate={{ opacity: 1, filter: "blur(0px)" }}
-                  transition={{ duration: 0.5 }}
-                  className="absolute bottom-0 left-0 flex w-full translate-y-[calc(100%+12px)] flex-col items-center px-3 text-center"
-                >
-                  <span className="font-display text-base font-bold text-forest">{item.title}</span>
-                  <span className="mt-1 text-xs text-forest/70">{item.description}</span>
-                </motion.div>
+            <div
+              className={cn(
+                "absolute bottom-0 left-0 flex w-full translate-y-[calc(100%+12px)] flex-col items-center px-3 text-center transition-opacity duration-300",
+                current === index ? "opacity-100" : "opacity-60"
               )}
-            </AnimatePresence>
+            >
+              <span className="font-display text-base font-bold text-forest">{item.title}</span>
+              <span className="mt-1 text-xs text-forest/70">{item.description}</span>
+            </div>
           </CarouselItem>
         ))}
       </CarouselContent>
