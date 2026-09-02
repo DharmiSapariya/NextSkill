@@ -13,7 +13,10 @@ export default function TypingAnimation({
   className = "",
 }) {
   const [wordIndex, setWordIndex] = useState(0);
-  const [charIndex, setCharIndex] = useState(0);
+  // Start at 1, not 0: an empty first char leaves the reserved-width box
+  // blank but for the cursor, showing as a stray gap before whatever
+  // follows in the sentence for the ~60ms before the first char types in.
+  const [charIndex, setCharIndex] = useState(words[0]?.length ? 1 : 0);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -31,6 +34,7 @@ export default function TypingAnimation({
     if (deleting && atStart) {
       setDeleting(false);
       setWordIndex((i) => (i + 1) % words.length);
+      setCharIndex(words[(wordIndex + 1) % words.length]?.length ? 1 : 0);
       return undefined;
     }
 
