@@ -25,7 +25,7 @@ export default function Footer() {
           <img
             src="/illustrations/22n.png"
             alt=""
-            className="pointer-events-none absolute -right-4 bottom-0 hidden w-44 -scale-x-100 select-none md:block"
+            className="pointer-events-none absolute -right-4 bottom-0 hidden w-44 select-none md:block"
           />
           <Sparkles className="pointer-events-none absolute left-10 top-8 hidden h-7 w-7 -rotate-12 text-lime md:block" />
 
