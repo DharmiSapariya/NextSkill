@@ -56,16 +56,24 @@ export function Input({ className, label, error, ...props }) {
   );
 }
 
-export function Badge({ className, children, tone = "forest" }) {
+export function Badge({ className, children, tone = "forest", style, ...props }) {
   const tones = {
     forest: "bg-forest/8 text-forest",
     lime: "bg-lime/40 text-forest",
     periwinkle: "bg-periwinkle/60 text-forest",
+    coral: "bg-coral/40 text-forest",
+    sky: "bg-sky/40 text-forest",
+    amber: "bg-amber/40 text-forest",
+    violet: "bg-violet/40 text-forest",
     red: "bg-red-100 text-red-700",
     green: "bg-emerald-100 text-emerald-700",
   };
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", tones[tone], className)}>
+    <span
+      className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", !style && tones[tone], className)}
+      style={style}
+      {...props}
+    >
       {children}
     </span>
   );

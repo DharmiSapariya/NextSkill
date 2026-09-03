@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Tags } from "lucide-react";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Input, Badge, LoadingState, ErrorState, EmptyState } from "../ui";
+import { PageHeader, Card, Button, Badge, LoadingState, ErrorState, EmptyState } from "../ui";
+import Autocomplete from "../Autocomplete";
+import { colorFor } from "../../lib/skillCategories";
 
 const PAGE_SIZE = 24;
 
@@ -25,12 +27,21 @@ export default function Skills() {
     api.getSkills(params).then(setData).catch((e) => setError(e.message));
   }, [q, page]);
 
+  const [liveQuery, setLiveQuery] = useState(q);
+  const liveDebounceRef = useRef(null);
+
   const updateQuery = (value) => {
     const next = new URLSearchParams(searchParams);
     if (value) next.set("q", value);
     else next.delete("q");
     next.delete("page");
     setSearchParams(next);
+  };
+
+  const handleLiveChange = (value) => {
+    setLiveQuery(value);
+    clearTimeout(liveDebounceRef.current);
+    liveDebounceRef.current = setTimeout(() => updateQuery(value), 220);
   };
 
   const goToPage = (p) => {
@@ -54,12 +65,16 @@ export default function Skills() {
       <PageHeader kicker="Explore" title="Skills" description="Every skill we've actually seen mentioned in a real posting." />
 
       <Card>
-        <Input
+        <Autocomplete
           label="Search skills"
-          placeholder="e.g. Kubernetes"
-          defaultValue={q}
-          onBlur={(e) => updateQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && updateQuery(e.target.value)}
+          placeholder="e.g. Kubernetes — start typing"
+          value={liveQuery}
+          onChange={handleLiveChange}
+          onSelect={(name) => {
+            setLiveQuery(name);
+            updateQuery(name);
+          }}
+          getOptions={(query) => api.getSkills({ q: query, limit: 8 }).then((res) => res.results.map((s) => s.name))}
         />
       </Card>
 
@@ -84,7 +99,13 @@ export default function Skills() {
                         : "border-forest/10 bg-white/60 text-forest hover:border-forest/25"
                     }`}
                   >
-                    <span className="font-medium">{s.name}</span>
+                    <span className="flex items-center gap-2 font-medium">
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: selected === s.name ? "var(--cream)" : colorFor(s.name) }}
+                      />
+                      {s.name}
+                    </span>
                     <span className={`text-xs ${selected === s.name ? "text-cream/70" : "text-forest/45"}`}>
                       {s.mention_count.toLocaleString()}
                     </span>

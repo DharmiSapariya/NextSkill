@@ -12,6 +12,14 @@ export default {
         cream: "#F8F4F0",
         ink: "#14261C",
         "cream-on-dark": "#FAFDEE",
+        // Secondary accent palette — pastel-toned to sit alongside
+        // periwinkle/lime rather than compete with them. Used for
+        // categorical color-coding (skill categories, badges) where a
+        // single accent color can't distinguish enough groups.
+        coral: "#F4A688",
+        sky: "#A9DDEA",
+        amber: "#F3C468",
+        violet: "#CDB6EE",
       },
       fontFamily: {
         display: ['"Bricolage Grotesque"', "system-ui", "sans-serif"],

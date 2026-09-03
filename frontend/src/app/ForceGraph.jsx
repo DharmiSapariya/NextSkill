@@ -131,6 +131,7 @@ export default function ForceGraph({
   const posById = new Map(positions.map((p) => [p.id, p]));
 
   const radiusFor = (node) => 6 + (Math.sqrt((node[sizeKey] || 1) / maxValue) * 20);
+  const colorFor = (node) => (typeof color === "function" ? color(node) : color);
 
   return (
     <svg
@@ -180,7 +181,7 @@ export default function ForceGraph({
             >
               <circle
                 r={r}
-                fill={color}
+                fill={colorFor(node)}
                 stroke={isSelected ? "var(--forest)" : "white"}
                 strokeWidth={isSelected ? 2.5 : 1.5}
                 style={{ transition: "r 0.15s ease" }}

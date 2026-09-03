@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, GitBranch } from "lucide-react";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Input, Badge, LoadingState, ErrorState } from "../ui";
+import { PageHeader, Card, Button, Badge, LoadingState, ErrorState } from "../ui";
 import ForceGraph from "../ForceGraph";
+import Autocomplete from "../Autocomplete";
+import { TRACKED_ROLES } from "../../lib/roles";
 
 export default function RoleGraph() {
   const [graph, setGraph] = useState(null);
@@ -69,12 +71,13 @@ export default function RoleGraph() {
           className="flex flex-wrap items-end gap-4"
         >
           <div className="min-w-[220px] flex-1">
-            <Input
+            <Autocomplete
               label="Or search a role directly"
               placeholder="e.g. Backend Developer"
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              required
+              onChange={setRole}
+              onSelect={setRole}
+              getOptions={(q) => TRACKED_ROLES.filter((r) => r.includes(q.trim().toLowerCase())).slice(0, 8)}
             />
           </div>
           <Button type="submit" disabled={loading || !role.trim()}>

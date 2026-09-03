@@ -3,17 +3,23 @@ import { Link, useSearchParams } from "react-router-dom";
 import { X, Plus, ArrowRight, Gauge } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Input, Badge, LoadingState, EmptyState } from "../ui";
+import { PageHeader, Card, Button, Badge, LoadingState, EmptyState } from "../ui";
+import Autocomplete from "../Autocomplete";
+import { TRACKED_ROLES } from "../../lib/roles";
+import { colorFor } from "../../lib/skillCategories";
 
 function SkillChip({ skill, onRemove }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-forest/8 px-3 py-1.5 text-sm font-medium text-forest">
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-forest"
+      style={{ backgroundColor: colorFor(skill), opacity: 0.9 }}
+    >
       {skill}
       <button
         type="button"
         onClick={onRemove}
         aria-label={`Remove ${skill}`}
-        className="text-forest/40 hover:text-forest"
+        className="text-forest/50 hover:text-forest"
       >
         <X className="h-3.5 w-3.5" />
       </button>
@@ -21,10 +27,13 @@ function SkillChip({ skill, onRemove }) {
   );
 }
 
-function DemandBar({ pct }) {
+function DemandBar({ pct, skill }) {
   return (
     <div className="h-2 flex-1 rounded-full bg-forest/8">
-      <div className="h-full rounded-full bg-periwinkle" style={{ width: `${Math.min(pct, 100)}%` }} />
+      <div
+        className="h-full rounded-full"
+        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorFor(skill) }}
+      />
     </div>
   );
 }
@@ -39,13 +48,22 @@ export default function SkillGapReport() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const addSkill = () => {
-    const s = skillInput.trim();
+  const addSkill = (value) => {
+    const s = (value ?? skillInput).trim();
     if (s && !skills.some((existing) => existing.toLowerCase() === s.toLowerCase())) {
       setSkills([...skills, s]);
     }
     setSkillInput("");
   };
+
+  const roleOptions = (query) =>
+    TRACKED_ROLES.filter((r) => r.includes(query.trim().toLowerCase())).slice(0, 8);
+
+  const skillOptions = (query) =>
+    api
+      .getSkills({ q: query, limit: 8 })
+      .then((res) => res.results.map((s) => s.name).filter((n) => !skills.some((s) => s.toLowerCase() === n.toLowerCase())))
+      .catch(() => []);
 
   const removeSkill = (s) => setSkills(skills.filter((existing) => existing !== s));
 
@@ -76,12 +94,13 @@ export default function SkillGapReport() {
 
       <Card>
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <Input
+          <Autocomplete
             label="Target role"
             placeholder="e.g. Data Scientist"
             value={role}
-            onChange={(e) => setRole(e.target.value)}
-            required
+            onChange={setRole}
+            onSelect={setRole}
+            getOptions={roleOptions}
           />
 
           <div>
@@ -93,20 +112,18 @@ export default function SkillGapReport() {
               {skills.length === 0 && <span className="text-sm text-forest/40">No skills added yet.</span>}
             </div>
             <div className="mt-3 flex gap-2">
-              <input
-                type="text"
+              <Autocomplete
+                className="flex-1"
                 value={skillInput}
-                onChange={(e) => setSkillInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addSkill();
-                  }
-                }}
+                onChange={setSkillInput}
+                onSelect={(s) => addSkill(s)}
+                onEnter={() => addSkill()}
+                getOptions={skillOptions}
+                minChars={1}
                 placeholder="Add a skill and press Enter"
-                className="h-10 flex-1 rounded-xl border border-forest/15 bg-white px-3 text-sm outline-none focus:border-forest/40"
+                inputClassName="h-10"
               />
-              <Button type="button" variant="secondary" size="sm" onClick={addSkill}>
+              <Button type="button" variant="secondary" size="sm" onClick={() => addSkill()}>
                 <Plus className="h-4 w-4" /> Add
               </Button>
             </div>
@@ -162,10 +179,12 @@ export default function SkillGapReport() {
                 <Card key={rec.skill}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="font-display text-base font-bold text-forest">{rec.skill}</h3>
-                    <Badge tone="lime">{rec.market_demand_pct}% of postings</Badge>
+                    <Badge style={{ backgroundColor: colorFor(rec.skill), opacity: 0.9 }}>
+                      {rec.market_demand_pct}% of postings
+                    </Badge>
                   </div>
                   <div className="mt-3 flex items-center gap-3">
-                    <DemandBar pct={rec.market_demand_pct} />
+                    <DemandBar pct={rec.market_demand_pct} skill={rec.skill} />
                     <span className="w-32 shrink-0 text-xs text-forest/60">
                       {rec.postings_mentioning_it.toLocaleString()} postings
                     </span>

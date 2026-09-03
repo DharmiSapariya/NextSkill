@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { TrendingUp, TrendingDown, Minus, Sparkles, ArrowRight } from "lucide-react";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Input, Badge, LoadingState, ErrorState } from "../ui";
+import { PageHeader, Card, Button, Badge, LoadingState, ErrorState } from "../ui";
+import Autocomplete from "../Autocomplete";
 
 const LIFECYCLE_TONE = {
   emerging: "periwinkle",
@@ -63,7 +64,14 @@ export default function Trends() {
       <Card>
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-4">
           <div className="min-w-[220px] flex-1">
-            <Input label="Skill name" placeholder="e.g. PyTorch" value={skill} onChange={(e) => setSkill(e.target.value)} required />
+            <Autocomplete
+              label="Skill name"
+              placeholder="e.g. PyTorch"
+              value={skill}
+              onChange={setSkill}
+              onSelect={setSkill}
+              getOptions={(q) => api.getSkills({ q, limit: 8 }).then((res) => res.results.map((s) => s.name))}
+            />
           </div>
           <Button type="submit" disabled={loading || !skill.trim()}>
             {loading ? "Looking…" : "Check trend"}

@@ -4,6 +4,8 @@ import { X, Plus, Save, KeyRound, Trash2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Input, Badge } from "../ui";
+import Autocomplete from "../Autocomplete";
+import { colorFor } from "../../lib/skillCategories";
 
 function SkillsCard() {
   const { user, refreshUser } = useAuth();
@@ -12,11 +14,17 @@ function SkillsCard() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const addSkill = () => {
-    const s = input.trim();
+  const addSkill = (value) => {
+    const s = (value ?? input).trim();
     if (s && !skills.some((existing) => existing.toLowerCase() === s.toLowerCase())) setSkills([...skills, s]);
     setInput("");
   };
+
+  const skillOptions = (query) =>
+    api
+      .getSkills({ q: query, limit: 8 })
+      .then((res) => res.results.map((s) => s.name).filter((n) => !skills.some((s) => s.toLowerCase() === n.toLowerCase())))
+      .catch(() => []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -38,9 +46,13 @@ function SkillsCard() {
 
       <div className="mt-4 flex flex-wrap gap-2">
         {skills.map((s) => (
-          <span key={s} className="inline-flex items-center gap-1.5 rounded-full bg-forest/8 px-3 py-1.5 text-sm font-medium text-forest">
+          <span
+            key={s}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-forest"
+            style={{ backgroundColor: colorFor(s), opacity: 0.9 }}
+          >
             {s}
-            <button type="button" onClick={() => setSkills(skills.filter((x) => x !== s))} className="text-forest/40 hover:text-forest">
+            <button type="button" onClick={() => setSkills(skills.filter((x) => x !== s))} className="text-forest/50 hover:text-forest">
               <X className="h-3.5 w-3.5" />
             </button>
           </span>
@@ -49,19 +61,17 @@ function SkillsCard() {
       </div>
 
       <div className="mt-3 flex gap-2">
-        <input
+        <Autocomplete
+          className="flex-1"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addSkill();
-            }
-          }}
+          onChange={setInput}
+          onSelect={(s) => addSkill(s)}
+          onEnter={() => addSkill()}
+          getOptions={skillOptions}
           placeholder="Add a skill and press Enter"
-          className="h-10 flex-1 rounded-xl border border-forest/15 bg-white px-3 text-sm outline-none focus:border-forest/40"
+          inputClassName="h-10"
         />
-        <Button type="button" variant="secondary" size="sm" onClick={addSkill}>
+        <Button type="button" variant="secondary" size="sm" onClick={() => addSkill()}>
           <Plus className="h-4 w-4" /> Add
         </Button>
       </div>

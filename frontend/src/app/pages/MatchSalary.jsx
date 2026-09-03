@@ -3,7 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import { ArrowRight, TrendingUp, DollarSign } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Input, Badge, LoadingState } from "../ui";
+import { PageHeader, Card, Button, Badge, LoadingState } from "../ui";
+import Autocomplete from "../Autocomplete";
+import { TRACKED_ROLES } from "../../lib/roles";
 
 function ScoreRing({ pct }) {
   const value = pct ?? 0;
@@ -77,7 +79,14 @@ export default function MatchSalary() {
       <Card>
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-4">
           <div className="min-w-[240px] flex-1">
-            <Input label="Target role" placeholder="e.g. Backend Developer" value={role} onChange={(e) => setRole(e.target.value)} required />
+            <Autocomplete
+              label="Target role"
+              placeholder="e.g. Backend Developer"
+              value={role}
+              onChange={setRole}
+              onSelect={setRole}
+              getOptions={(q) => TRACKED_ROLES.filter((r) => r.includes(q.trim().toLowerCase())).slice(0, 8)}
+            />
           </div>
           <Button type="submit" disabled={loading || !role.trim()}>
             {loading ? "Analyzing…" : "Check"}

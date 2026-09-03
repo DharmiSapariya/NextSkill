@@ -64,6 +64,10 @@
   --cream: #f8f4f0;
   --ink: #14261c;
   --cream-on-dark: #fafdee;
+  --coral: #f4a688;
+  --sky: #a9ddea;
+  --amber: #f3c468;
+  --violet: #cdb6ee;
   --hue: 150; /* forest green hue, used by the Loader's HSL bands */
 }
 

@@ -3,6 +3,7 @@ import { Share2 } from "lucide-react";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Badge, LoadingState, ErrorState } from "../ui";
 import ForceGraph from "../ForceGraph";
+import { colorFor, CATEGORY_COLORS } from "../../lib/skillCategories";
 
 export default function SkillGraph() {
   const [graph, setGraph] = useState(null);
@@ -42,10 +43,20 @@ export default function SkillGraph() {
               <ForceGraph
                 nodes={graph.nodes.map((n) => ({ id: n.id, label: n.label, value: n.mention_count }))}
                 edges={graph.edges}
-                color="var(--periwinkle)"
+                color={(node) => colorFor(node.label)}
                 selectedId={selected}
                 onNodeClick={(node) => setSelected(node.id === selected ? null : node.id)}
               />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-forest/10 px-2 pt-3">
+              {Object.entries(CATEGORY_COLORS)
+                .filter(([category]) => category !== "Other")
+                .map(([category, cssVar]) => (
+                  <span key={category} className="flex items-center gap-1.5 text-[11px] text-forest/55">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: cssVar }} />
+                    {category}
+                  </span>
+                ))}
             </div>
           </Card>
 
