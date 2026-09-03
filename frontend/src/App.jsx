@@ -13,6 +13,7 @@ import MatchSalary from "./app/pages/MatchSalary";
 import Jobs from "./app/pages/Jobs";
 import JobDetail from "./app/pages/JobDetail";
 import SavedJobs from "./app/pages/SavedJobs";
+import Trends from "./app/pages/Trends";
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
             <Route path="jobs" element={<Jobs />} />
             <Route path="jobs/:id" element={<JobDetail />} />
             <Route path="saved-jobs" element={<SavedJobs />} />
+            <Route path="trends" element={<Trends />} />
           </Route>
         </Routes>
       </AuthProvider>
