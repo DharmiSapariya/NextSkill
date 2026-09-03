@@ -9,6 +9,7 @@ import Reassurance from "./sections/Reassurance";
 import HowItWorksSection from "./sections/HowItWorksSection";
 import Evidence from "./sections/Evidence";
 import Pricing from "./sections/Pricing";
+import FAQ from "./sections/FAQ";
 import Footer from "./sections/Footer";
 
 export default function Landing() {
@@ -26,6 +27,7 @@ export default function Landing() {
         <HowItWorksSection />
         <Evidence />
         <Pricing />
+        <FAQ />
       </main>
       <Footer />
     </div>
