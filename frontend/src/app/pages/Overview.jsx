@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Target, FileUp, Gauge, ArrowRight } from "lucide-react";
+import { Target, FileUp, Gauge, ArrowRight, Sparkles, Layers, History as HistoryIcon } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
 import { Card, Button, LoadingState, ErrorState, EmptyState, Badge, StatTile } from "../ui";
@@ -62,12 +62,25 @@ export default function Overview() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatTile label="Your skills" value={user?.skills?.length ?? 0} sub="tracked in your profile" />
-        <StatTile label="Plan" value={<span className="capitalize">{user?.tier ?? "free"}</span>} />
+        <StatTile
+          label="Your skills"
+          value={user?.skills?.length ?? 0}
+          sub="tracked in your profile"
+          icon={Layers}
+          accent="var(--periwinkle)"
+        />
+        <StatTile
+          label="Plan"
+          value={<span className="capitalize">{user?.tier ?? "free"}</span>}
+          icon={Sparkles}
+          accent="var(--lime)"
+        />
         <StatTile
           label="Reports run"
           value={history ? history.results.length : "—"}
           sub="most recent 5 shown below"
+          icon={HistoryIcon}
+          accent="var(--coral)"
         />
       </div>
 

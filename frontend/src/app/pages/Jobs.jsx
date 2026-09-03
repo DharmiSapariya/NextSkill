@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { MapPin, ArrowRight, ArrowLeft } from "lucide-react";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Input, Badge, LoadingState, ErrorState, EmptyState } from "../ui";
+import Autocomplete from "../Autocomplete";
+import { TRACKED_ROLES } from "../../lib/roles";
 
 const SENIORITY_OPTIONS = ["junior", "mid", "senior", "unspecified"];
 const PAGE_SIZE = 20;
@@ -14,6 +16,11 @@ export default function Jobs() {
   const location = searchParams.get("location") || "";
   const seniority = searchParams.get("seniority") || "";
   const page = parseInt(searchParams.get("page") || "0", 10);
+
+  const [liveRole, setLiveRole] = useState(role);
+  const [liveLocation, setLiveLocation] = useState(location);
+  const roleDebounceRef = useRef(null);
+  const locationDebounceRef = useRef(null);
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +49,18 @@ export default function Jobs() {
     setSearchParams(next);
   };
 
+  const handleLiveRole = (value) => {
+    setLiveRole(value);
+    clearTimeout(roleDebounceRef.current);
+    roleDebounceRef.current = setTimeout(() => updateParam("role", value), 250);
+  };
+
+  const handleLiveLocation = (value) => {
+    setLiveLocation(value);
+    clearTimeout(locationDebounceRef.current);
+    locationDebounceRef.current = setTimeout(() => updateParam("location", value), 250);
+  };
+
   const goToPage = (p) => {
     const next = new URLSearchParams(searchParams);
     next.set("page", p);
@@ -54,21 +73,24 @@ export default function Jobs() {
 
       <Card className="flex flex-wrap items-end gap-4">
         <div className="min-w-[200px] flex-1">
-          <Input
+          <Autocomplete
             label="Role keyword"
             placeholder="e.g. Data Analyst"
-            defaultValue={role}
-            onBlur={(e) => updateParam("role", e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && updateParam("role", e.target.value)}
+            value={liveRole}
+            onChange={handleLiveRole}
+            onSelect={(v) => {
+              setLiveRole(v);
+              updateParam("role", v);
+            }}
+            getOptions={(q) => TRACKED_ROLES.filter((r) => r.includes(q.trim().toLowerCase())).slice(0, 8)}
           />
         </div>
         <div className="min-w-[200px] flex-1">
           <Input
             label="Location keyword"
-            placeholder="e.g. Remote"
-            defaultValue={location}
-            onBlur={(e) => updateParam("location", e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && updateParam("location", e.target.value)}
+            placeholder="e.g. Remote — filters live"
+            value={liveLocation}
+            onChange={(e) => handleLiveLocation(e.target.value)}
           />
         </div>
         <label className="flex flex-col gap-1.5">

@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Share2, Copy, Check, X, TrendingUp } from "lucide-react";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Badge, LoadingState, ErrorState, EmptyState } from "../ui";
+import { useToast } from "../../context/ToastContext";
 
 function ShareControl({ entryId, onShared }) {
+  const toast = useToast();
   const [link, setLink] = useState(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -15,8 +17,9 @@ function ShareControl({ entryId, onShared }) {
       const fullUrl = `${window.location.origin}${share_path}`;
       setLink(fullUrl);
       onShared?.();
+      toast.success("Report shared — link ready to copy");
     } catch {
-      /* surfaced inline via the button staying in its unshared state */
+      toast.error("Couldn't share that report — try again");
     } finally {
       setLoading(false);
     }
@@ -126,6 +129,7 @@ function ProgressPanel({ roles }) {
 }
 
 export default function History() {
+  const toast = useToast();
   const [history, setHistory] = useState(null);
   const [sharedReports, setSharedReports] = useState(null);
   const [error, setError] = useState(null);
@@ -138,8 +142,13 @@ export default function History() {
   }, []);
 
   const handleRevoke = async (token) => {
-    await api.revokeSharedReport(token);
-    setSharedReports((prev) => prev.filter((r) => r.token !== token));
+    try {
+      await api.revokeSharedReport(token);
+      setSharedReports((prev) => prev.filter((r) => r.token !== token));
+      toast.info("Link revoked — it no longer works");
+    } catch {
+      toast.error("Couldn't revoke that link — try again");
+    }
   };
 
   const roles = history ? [...new Set(history.map((h) => h.resolved_role))] : [];

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppLoadGate from "./components/AppLoadGate";
 import { AuthProvider } from "./context/AuthContext";
+import { ToastProvider } from "./context/ToastContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Landing from "./Landing";
 import AppShell from "./app/AppShell";
@@ -27,6 +28,7 @@ import AdminUsers from "./app/pages/AdminUsers";
 function App() {
   return (
     <BrowserRouter>
+      <ToastProvider>
       <AuthProvider>
         <Routes>
           <Route
@@ -83,6 +85,7 @@ function App() {
           </Route>
         </Routes>
       </AuthProvider>
+      </ToastProvider>
     </BrowserRouter>
   );
 }

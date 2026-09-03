@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ArrowRight, TrendingUp, DollarSign } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Badge, LoadingState } from "../ui";
+import { PageHeader, Card, Button, Badge, LoadingState, InfoHint } from "../ui";
 import Autocomplete from "../Autocomplete";
 import { TRACKED_ROLES } from "../../lib/roles";
 
@@ -112,6 +112,7 @@ export default function MatchSalary() {
               <div className="flex items-center gap-2 text-forest/70">
                 <TrendingUp className="h-4 w-4" />
                 <span className="font-kicker text-xs uppercase tracking-widest">Match score</span>
+                <InfoHint text="The share of real postings for this role where your skills clear the overlap threshold — not a guess, a count." />
               </div>
 
               {match.match_pct == null ? (
@@ -154,6 +155,7 @@ export default function MatchSalary() {
             <div className="flex items-center gap-2 text-forest/70">
               <DollarSign className="h-4 w-4" />
               <span className="font-kicker text-xs uppercase tracking-widest">Predicted salary</span>
+              <InfoHint text="Estimated from postings for the closest matching role bucket in our data, not a guarantee of pay." />
             </div>
 
             {salaryUnavailable && (

@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Building2, Trophy } from "lucide-react";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Input, LoadingState, ErrorState, EmptyState } from "../ui";
+import { PageHeader, Card, Button, LoadingState, ErrorState, EmptyState } from "../ui";
+import Autocomplete from "../Autocomplete";
 
 const PAGE_SIZE = 20;
 
@@ -10,6 +12,9 @@ export default function Companies() {
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get("q") || "";
   const page = parseInt(searchParams.get("page") || "0", 10);
+
+  const [liveQuery, setLiveQuery] = useState(q);
+  const debounceRef = useRef(null);
 
   const [top, setTop] = useState(null);
   const [list, setList] = useState(null);
@@ -35,6 +40,12 @@ export default function Companies() {
     setSearchParams(next);
   };
 
+  const handleLiveChange = (value) => {
+    setLiveQuery(value);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => updateQuery(value), 220);
+  };
+
   const goToPage = (p) => {
     const next = new URLSearchParams(searchParams);
     next.set("page", p);
@@ -53,25 +64,39 @@ export default function Companies() {
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {top.map((c, i) => (
-              <Card key={c.company} className="flex items-center gap-3">
-                <span className="font-display text-lg font-bold text-forest/30">{i + 1}</span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-forest">{c.company}</p>
-                  <p className="text-xs text-forest/50">{c.postings.toLocaleString()} postings</p>
-                </div>
-              </Card>
+              <motion.div
+                key={c.company}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: i * 0.04 }}
+                whileHover={{ y: -3 }}
+              >
+                <Card className="flex items-center gap-3 transition-colors hover:border-forest/25">
+                  <span className="font-display text-lg font-bold text-forest/30">{i + 1}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-forest">{c.company}</p>
+                    <p className="text-xs text-forest/50">{c.postings.toLocaleString()} postings</p>
+                  </div>
+                </Card>
+              </motion.div>
             ))}
           </div>
         </div>
       )}
 
       <Card>
-        <Input
+        <Autocomplete
           label="Search companies"
-          placeholder="e.g. Acme"
-          defaultValue={q}
-          onBlur={(e) => updateQuery(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && updateQuery(e.target.value)}
+          placeholder="e.g. Acme — start typing"
+          value={liveQuery}
+          onChange={handleLiveChange}
+          onSelect={(name) => {
+            setLiveQuery(name);
+            updateQuery(name);
+          }}
+          getOptions={(query) =>
+            api.getCompanies({ q: query, limit: 8 }).then((res) => res.results.map((c) => c.company))
+          }
         />
       </Card>
 
@@ -85,13 +110,20 @@ export default function Companies() {
           <>
             <p className="mb-3 text-xs text-forest/50">{list.total.toLocaleString()} companies</p>
             <div className="flex flex-col gap-2">
-              {list.results.map((c) => (
-                <Card key={c.company} className="flex items-center justify-between gap-3 py-3">
-                  <span className="flex items-center gap-2 text-sm font-medium text-forest">
-                    <Building2 className="h-4 w-4 text-forest/40" /> {c.company}
-                  </span>
-                  <span className="text-xs text-forest/50">{c.postings.toLocaleString()} postings</span>
-                </Card>
+              {list.results.map((c, i) => (
+                <motion.div
+                  key={c.company}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: Math.min(i, 10) * 0.025 }}
+                >
+                  <Card className="flex items-center justify-between gap-3 py-3 transition-colors hover:border-forest/25">
+                    <span className="flex items-center gap-2 text-sm font-medium text-forest">
+                      <Building2 className="h-4 w-4 text-forest/40" /> {c.company}
+                    </span>
+                    <span className="text-xs text-forest/50">{c.postings.toLocaleString()} postings</span>
+                  </Card>
+                </motion.div>
               ))}
             </div>
 

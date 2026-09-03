@@ -4,11 +4,13 @@ import { FileUp, UploadCloud, ArrowRight, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Badge, LoadingState } from "../ui";
+import { useToast } from "../../context/ToastContext";
 
 const MAX_SIZE_MB = 5;
 
 export default function ResumeUpload() {
   const { refreshUser } = useAuth();
+  const toast = useToast();
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -35,8 +37,14 @@ export default function ResumeUpload() {
       const data = await api.uploadResume(file);
       setResult(data);
       refreshUser();
+      toast.success(
+        data.skills_found_in_resume.length > 0
+          ? `Found ${data.skills_found_in_resume.length} skill${data.skills_found_in_resume.length === 1 ? "" : "s"} and merged them in`
+          : "Resume parsed — no tracked skills detected"
+      );
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || "Couldn't parse that resume");
     } finally {
       setLoading(false);
     }

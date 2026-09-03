@@ -1,5 +1,38 @@
+import { useEffect, useRef, useState } from "react";
 import { cn } from "../lib/cn";
 import Loader from "../components/Loader";
+
+// Animates from its previous rendered value to `value` whenever it changes —
+// used by StatTile so numbers feel alive instead of just appearing.
+export function CountUp({ value, duration = 800 }) {
+  const [display, setDisplay] = useState(value);
+  const fromRef = useRef(value);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const from = fromRef.current;
+    const to = value;
+    if (from === to) return undefined;
+    const start = performance.now();
+
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = from + (to - from) * eased;
+      setDisplay(current);
+      if (t < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        fromRef.current = to;
+        setDisplay(to);
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [value, duration]);
+
+  return <>{Math.round(display).toLocaleString()}</>;
+}
 
 export function PageHeader({ kicker, title, description, actions }) {
   return (
@@ -112,15 +145,46 @@ export function EmptyState({ title, description, action, illustration = "/illust
   );
 }
 
+// A small "i" glyph that shows a plain-language explanation of a metric or
+// term on hover/focus via the native title tooltip — no extra JS needed.
+export function InfoHint({ text, className }) {
+  return (
+    <span
+      tabIndex={0}
+      title={text}
+      className={cn(
+        "inline-flex h-3.5 w-3.5 shrink-0 cursor-help items-center justify-center rounded-full bg-forest/12 text-[9px] font-bold leading-none text-forest/60 outline-none focus-visible:ring-2 focus-visible:ring-forest/30",
+        className
+      )}
+      aria-label={text}
+    >
+      i
+    </span>
+  );
+}
+
 export function Skeleton({ className }) {
   return <div className={cn("animate-pulse rounded-lg bg-forest/8", className)} />;
 }
 
-export function StatTile({ label, value, sub }) {
+export function StatTile({ label, value, sub, icon: Icon, accent }) {
+  const isNumeric = typeof value === "number" && Number.isFinite(value);
   return (
-    <Card className="flex flex-col gap-1">
-      <span className="font-kicker text-[11px] uppercase tracking-widest text-forest/45">{label}</span>
-      <span className="font-display text-2xl font-bold text-forest">{value}</span>
+    <Card className={cn("flex flex-col gap-1", accent && "border-forest/15")}>
+      <div className="flex items-center justify-between">
+        <span className="font-kicker text-[11px] uppercase tracking-widest text-forest/45">{label}</span>
+        {Icon && (
+          <span
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+            style={{ backgroundColor: accent || "var(--forest)", opacity: 0.85 }}
+          >
+            <Icon className="h-3.5 w-3.5 text-forest" />
+          </span>
+        )}
+      </div>
+      <span className="font-display text-2xl font-bold text-forest">
+        {isNumeric ? <CountUp value={value} /> : value}
+      </span>
       {sub && <span className="text-xs text-forest/50">{sub}</span>}
     </Card>
   );

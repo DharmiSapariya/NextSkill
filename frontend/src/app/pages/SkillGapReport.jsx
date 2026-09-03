@@ -3,10 +3,11 @@ import { Link, useSearchParams } from "react-router-dom";
 import { X, Plus, ArrowRight, Gauge } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Badge, LoadingState, EmptyState } from "../ui";
+import { PageHeader, Card, Button, Badge, LoadingState, EmptyState, InfoHint } from "../ui";
 import Autocomplete from "../Autocomplete";
 import { TRACKED_ROLES } from "../../lib/roles";
 import { colorFor } from "../../lib/skillCategories";
+import { useToast } from "../../context/ToastContext";
 
 function SkillChip({ skill, onRemove }) {
   return (
@@ -40,6 +41,7 @@ function DemandBar({ pct, skill }) {
 
 export default function SkillGapReport() {
   const { user, refreshUser } = useAuth();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
   const [role, setRole] = useState(searchParams.get("role") || "");
   const [skills, setSkills] = useState(user?.skills || []);
@@ -77,8 +79,14 @@ export default function SkillGapReport() {
       const data = await api.recommendWithEvidence(role, skills);
       setResult(data);
       refreshUser();
+      toast.success(
+        data.recommendations.length > 0
+          ? `Found ${data.recommendations.length} gap skill${data.recommendations.length === 1 ? "" : "s"} — saved to your history`
+          : "No gaps found — saved to your history"
+      );
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || "Couldn't run that report");
     } finally {
       setLoading(false);
     }
@@ -179,9 +187,12 @@ export default function SkillGapReport() {
                 <Card key={rec.skill}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <h3 className="font-display text-base font-bold text-forest">{rec.skill}</h3>
-                    <Badge style={{ backgroundColor: colorFor(rec.skill), opacity: 0.9 }}>
-                      {rec.market_demand_pct}% of postings
-                    </Badge>
+                    <span className="flex items-center gap-1.5">
+                      <Badge style={{ backgroundColor: colorFor(rec.skill), opacity: 0.9 }}>
+                        {rec.market_demand_pct}% of postings
+                      </Badge>
+                      <InfoHint text={`Mentioned in ${rec.market_demand_pct}% of real postings analyzed for this role — one of the top gaps between your skills and the market.`} />
+                    </span>
                   </div>
                   <div className="mt-3 flex items-center gap-3">
                     <DemandBar pct={rec.market_demand_pct} skill={rec.skill} />

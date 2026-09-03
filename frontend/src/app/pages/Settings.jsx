@@ -6,9 +6,11 @@ import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Input, Badge } from "../ui";
 import Autocomplete from "../Autocomplete";
 import { colorFor } from "../../lib/skillCategories";
+import { useToast } from "../../context/ToastContext";
 
 function SkillsCard() {
   const { user, refreshUser } = useAuth();
+  const toast = useToast();
   const [skills, setSkills] = useState(user?.skills || []);
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -33,7 +35,10 @@ function SkillsCard() {
       await api.updateMySkills(skills);
       await refreshUser();
       setSaved(true);
+      toast.success(`Saved ${skills.length} skill${skills.length === 1 ? "" : "s"} to your profile`);
       setTimeout(() => setSaved(false), 2000);
+    } catch {
+      toast.error("Couldn't save your skills — try again");
     } finally {
       setSaving(false);
     }
@@ -84,6 +89,7 @@ function SkillsCard() {
 }
 
 function PasswordCard() {
+  const toast = useToast();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [status, setStatus] = useState(null);
@@ -96,10 +102,12 @@ function PasswordCard() {
     try {
       await api.changePassword(current, next);
       setStatus({ ok: true, message: "Password updated." });
+      toast.success("Password updated");
       setCurrent("");
       setNext("");
     } catch (err) {
       setStatus({ ok: false, message: err.message });
+      toast.error(err.message || "Couldn't update password");
     } finally {
       setLoading(false);
     }

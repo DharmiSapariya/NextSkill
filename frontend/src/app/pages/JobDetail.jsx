@@ -3,9 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, MapPin, Bookmark, BookmarkCheck, CheckCircle2, XCircle } from "lucide-react";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Badge, LoadingState, ErrorState } from "../ui";
+import { useToast } from "../../context/ToastContext";
 
 export default function JobDetail() {
   const { id } = useParams();
+  const toast = useToast();
   const [job, setJob] = useState(null);
   const [match, setMatch] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -30,12 +32,14 @@ export default function JobDetail() {
       if (saved) {
         await api.unsaveJob(id);
         setSaved(false);
+        toast.info("Removed from saved jobs");
       } else {
         await api.saveJob(id);
         setSaved(true);
+        toast.success("Saved — find it under Saved Jobs");
       }
     } catch {
-      /* no-op — button reverts to the last known state on refetch */
+      toast.error("Couldn't update saved status — try again");
     } finally {
       setSavingState(false);
     }

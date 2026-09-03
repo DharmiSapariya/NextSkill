@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { TrendingUp, TrendingDown, Minus, Sparkles, ArrowRight } from "lucide-react";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Badge, LoadingState, ErrorState } from "../ui";
+import { PageHeader, Card, Button, Badge, LoadingState, ErrorState, InfoHint } from "../ui";
 import Autocomplete from "../Autocomplete";
+
+const LIFECYCLE_HINT = {
+  emerging: "New enough that we don't have a long track record yet, but growing fast.",
+  growing: "Its share of postings is meaningfully up over the comparison window.",
+  mature: "Consistently in demand with a stable, established share of postings.",
+  declining: "Its share of postings has meaningfully dropped over the comparison window.",
+  niche: "Present, but only in a small, steady slice of postings.",
+  insufficient_data: "Not enough mentions yet to classify a trend confidently.",
+};
 
 const LIFECYCLE_TONE = {
   emerging: "periwinkle",
@@ -89,9 +98,12 @@ export default function Trends() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="font-display text-xl font-bold text-forest">{result.skill}</h2>
               <div className="flex items-center gap-2">
-                <Badge tone={LIFECYCLE_TONE[result.lifecycle]} className="capitalize">
-                  {result.lifecycle.replace("_", " ")}
-                </Badge>
+                <span className="flex items-center gap-1.5">
+                  <Badge tone={LIFECYCLE_TONE[result.lifecycle]} className="capitalize">
+                    {result.lifecycle.replace("_", " ")}
+                  </Badge>
+                  <InfoHint text={LIFECYCLE_HINT[result.lifecycle] || "Lifecycle classification based on posting share over time."} />
+                </span>
                 <span className="flex items-center gap-1 text-sm font-semibold capitalize text-forest/70">
                   <TrendIcon className="h-4 w-4" />
                   {result.trend}
