@@ -12,6 +12,7 @@ import ResumeUpload from "./app/pages/ResumeUpload";
 import MatchSalary from "./app/pages/MatchSalary";
 import Jobs from "./app/pages/Jobs";
 import JobDetail from "./app/pages/JobDetail";
+import SavedJobs from "./app/pages/SavedJobs";
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
             <Route path="match" element={<MatchSalary />} />
             <Route path="jobs" element={<Jobs />} />
             <Route path="jobs/:id" element={<JobDetail />} />
+            <Route path="saved-jobs" element={<SavedJobs />} />
           </Route>
         </Routes>
       </AuthProvider>
