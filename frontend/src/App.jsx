@@ -10,6 +10,8 @@ import Signup from "./app/pages/Signup";
 import SkillGapReport from "./app/pages/SkillGapReport";
 import ResumeUpload from "./app/pages/ResumeUpload";
 import MatchSalary from "./app/pages/MatchSalary";
+import Jobs from "./app/pages/Jobs";
+import JobDetail from "./app/pages/JobDetail";
 
 function App() {
   return (
@@ -40,6 +42,8 @@ function App() {
             <Route path="report" element={<SkillGapReport />} />
             <Route path="resume" element={<ResumeUpload />} />
             <Route path="match" element={<MatchSalary />} />
+            <Route path="jobs" element={<Jobs />} />
+            <Route path="jobs/:id" element={<JobDetail />} />
           </Route>
         </Routes>
       </AuthProvider>
