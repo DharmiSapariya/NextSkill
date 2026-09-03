@@ -26,8 +26,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nextskill.seed.demo")
 
 RNG_SEED = 20260101
-POSTINGS_PER_ROLE = (60, 120)  # random range, so roles don't all look identical
-POSTING_WINDOW_DAYS = 90  # spans two /trends 30-day comparison windows with room to spare
+POSTINGS_PER_ROLE = (220, 380)  # random range, so roles don't all look identical
+POSTING_WINDOW_DAYS = 180  # spans several /trends 30-day comparison windows with room to spare
 
 COMPANIES: List[str] = [
     "Acme Corp", "Globex", "Initech", "Umbrella Analytics", "Stark Systems",
@@ -39,14 +39,22 @@ COMPANIES: List[str] = [
     "Rekall Systems", "Nakatomi Trading", "Gekko & Co", "Hanso Foundation",
     "Zorg Industries", "Northwind Traders", "Contoso Cloud", "Fabrikam Analytics",
     "Trask Bio", "Sirius Cybernetics", "Buy N Large", "Genco Pura",
+    "Stellar Forge Labs", "Quantum Loop", "Northstar Analytics", "Ironclad Systems",
+    "Bright Path Health", "Vertex Robotics", "Cascade Data Co", "Meridian Cloud",
+    "Solaris Fintech", "Pinnacle Logistics", "Orbital Devices", "Redwood AI",
+    "Glacier Security", "Harborline Payments", "Anchorpoint Software", "Lumen Grid",
+    "Nimbus Retail Tech", "Kestrel Biotech", "Foundry Interactive", "Driftwood Media",
+    "Copperline Manufacturing", "Silverleaf Insurance", "Basecamp Mobility", "Everline Energy",
 ]
 
 LOCATIONS: List[str] = [
-    "Remote", "Remote", "Remote",  # weighted — remote is common in the real data too
+    "Remote", "Remote", "Remote", "Remote (US)", "Remote (EU)",  # weighted — remote is common in the real data too
     "San Francisco, CA", "New York, NY", "Seattle, WA", "Austin, TX",
     "Boston, MA", "Chicago, IL", "Denver, CO", "Los Angeles, CA",
     "Atlanta, GA", "Toronto, ON", "London, UK", "Berlin, Germany",
-    "Bangalore, India", "Remote (US)", "Remote (EU)",
+    "Bangalore, India", "Dublin, Ireland", "Amsterdam, Netherlands",
+    "Singapore", "Sydney, Australia", "Vancouver, BC", "Portland, OR",
+    "Raleigh, NC", "Miami, FL", "Washington, DC", "Pune, India",
 ]
 
 SENIORITY_PREFIXES: List[Tuple[str, float]] = [

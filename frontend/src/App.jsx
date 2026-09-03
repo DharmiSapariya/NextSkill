@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import AppLoadGate from "./components/AppLoadGate";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -31,14 +30,7 @@ function App() {
       <ToastProvider>
       <AuthProvider>
         <Routes>
-          <Route
-            path="/"
-            element={
-              <AppLoadGate>
-                <Landing />
-              </AppLoadGate>
-            }
-          />
+          <Route path="/" element={<Landing />} />
 
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />

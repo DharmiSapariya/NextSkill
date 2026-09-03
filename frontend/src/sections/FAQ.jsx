@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ArrowRight, HelpCircle } from "lucide-react";
 import Highlighter from "../components/Highlighter";
+import DoodleCircle from "../components/DoodleCircle";
 
 // Every answer here describes something the product actually does — no
 // promises about pricing, privacy, or data freshness beyond what the app
@@ -86,14 +87,50 @@ export default function FAQ() {
   const [openIndex, setOpenIndex] = useState(0);
 
   return (
-    <section id="faq" className="bg-periwinkle/25 px-6 py-24">
-      <div className="mx-auto max-w-3xl">
+    <section id="faq" className="relative overflow-hidden bg-cream px-6 py-24">
+      {/* Decorative background — soft palette blobs + doodle arrows/circles,
+          matching the illustration language used elsewhere on the landing
+          page (Problem/Solution/Hero), so this section doesn't read as a
+          flat, disconnected color band. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-24 -top-16 h-72 w-72 rounded-full bg-periwinkle/40 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-20 top-1/3 h-64 w-64 rounded-full bg-lime/30 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-0 left-1/4 h-56 w-56 rounded-full bg-periwinkle/25 blur-3xl"
+      />
+      <img
+        src="/doodles/three.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute right-[6%] top-6 hidden w-16 -scale-x-100 opacity-50 md:block"
+      />
+      <img
+        src="/doodles/seven.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-10 left-[4%] hidden w-24 rotate-[8deg] opacity-60 lg:block"
+      />
+      <img
+        src="/doodles/two.png"
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute right-[10%] bottom-16 hidden w-14 rotate-12 opacity-40 md:block"
+      />
+
+      <div className="relative mx-auto max-w-3xl">
         <div className="text-center">
-          <span className="flex items-center justify-center gap-1.5 font-kicker text-xs uppercase tracking-widest text-forest/50">
+          <span className="relative inline-flex items-center justify-center gap-1.5 font-kicker text-xs uppercase tracking-widest text-forest/50">
+            <span className="pointer-events-none absolute -inset-x-4 -inset-y-2 rounded-full border border-dashed border-forest/20" />
             <HelpCircle className="h-3.5 w-3.5" /> Frequently asked
           </span>
-          <h2 className="mt-2 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-tight text-forest">
-            Questions people actually{" "}
+          <h2 className="mt-3 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-bold leading-tight text-forest">
+            Questions people <DoodleCircle color="periwinkle">actually</DoodleCircle>{" "}
             <Highlighter action="highlight" color="var(--lime)" isView>
               ask us
             </Highlighter>
@@ -110,7 +147,7 @@ export default function FAQ() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3 text-center">
+        <div className="relative mt-10 flex flex-wrap items-center justify-center gap-3 text-center">
           <p className="text-sm text-forest/55">Still have a question?</p>
           <Link
             to="/signup"
