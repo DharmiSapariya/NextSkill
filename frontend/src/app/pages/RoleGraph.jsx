@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, GitBranch } from "lucide-react";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Input, Badge, LoadingState, ErrorState } from "../ui";
+import ForceGraph from "../ForceGraph";
 
 export default function RoleGraph() {
   const [graph, setGraph] = useState(null);
@@ -32,15 +33,34 @@ export default function RoleGraph() {
     }
   };
 
+  const graphNodes = graph ? graph.nodes.map((n) => ({ id: n.id, label: n.label, value: n.posting_count })) : [];
+  const graphEdges = graph ? graph.edges : [];
+
   return (
     <div>
       <PageHeader
         kicker="Explore"
         title="Role Graph"
-        description="See which roles are closest to your target — and exactly which skills bridge the gap."
+        description="Every node is a tracked role, sized by posting volume — edges show how closely two roles' skill demands overlap. Click a role to see the closest transitions."
       />
 
-      <Card>
+      <Card className="p-2 sm:p-4">
+        {graphError && <ErrorState message={graphError} />}
+        {!graph && !graphError && <LoadingState label="Building the role network…" />}
+        {graph && (
+          <div className="h-[420px] w-full sm:h-[480px]">
+            <ForceGraph
+              nodes={graphNodes}
+              edges={graphEdges}
+              color="var(--lime)"
+              selectedId={nearest?.role_resolution?.resolved}
+              onNodeClick={(node) => runSearch(node.label)}
+            />
+          </div>
+        )}
+      </Card>
+
+      <Card className="mt-6">
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -49,7 +69,13 @@ export default function RoleGraph() {
           className="flex flex-wrap items-end gap-4"
         >
           <div className="min-w-[220px] flex-1">
-            <Input label="Role" placeholder="e.g. Backend Developer" value={role} onChange={(e) => setRole(e.target.value)} required />
+            <Input
+              label="Or search a role directly"
+              placeholder="e.g. Backend Developer"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              required
+            />
           </div>
           <Button type="submit" disabled={loading || !role.trim()}>
             {loading ? "Finding…" : "Find nearest roles"}
@@ -63,6 +89,13 @@ export default function RoleGraph() {
 
       {nearest && (
         <div className="mt-6 flex flex-col gap-4">
+          <div className="flex items-center gap-2 text-forest/70">
+            <GitBranch className="h-4 w-4" />
+            <span className="font-kicker text-xs uppercase tracking-widest">
+              Closest to {nearest.role_resolution?.resolved || nearest.role}
+            </span>
+          </div>
+
           {nearest.nearest_roles.length === 0 && (
             <p className="text-sm text-forest/55">No tracked-role data yet for this role.</p>
           )}
@@ -101,33 +134,6 @@ export default function RoleGraph() {
           ))}
         </div>
       )}
-
-      <div className="mt-10">
-        <div className="mb-3 flex items-center gap-2 text-forest/70">
-          <GitBranch className="h-4 w-4" />
-          <h2 className="font-display text-lg font-bold text-forest">All tracked roles</h2>
-        </div>
-        {graphError && <ErrorState message={graphError} />}
-        {!graph && !graphError && <LoadingState label="Loading role network…" />}
-        {graph && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-            {graph.nodes
-              .slice()
-              .sort((a, b) => b.posting_count - a.posting_count)
-              .map((n) => (
-                <button
-                  key={n.id}
-                  type="button"
-                  onClick={() => runSearch(n.label)}
-                  className="flex flex-col items-start rounded-xl border border-forest/10 bg-white/60 px-4 py-3 text-left transition-colors hover:border-forest/25"
-                >
-                  <span className="text-sm font-semibold capitalize text-forest">{n.label}</span>
-                  <span className="text-xs text-forest/45">{n.posting_count.toLocaleString()} postings</span>
-                </button>
-              ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

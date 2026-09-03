@@ -2,64 +2,81 @@ import { useEffect, useState } from "react";
 import { Share2 } from "lucide-react";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Badge, LoadingState, ErrorState } from "../ui";
+import ForceGraph from "../ForceGraph";
 
 export default function SkillGraph() {
   const [graph, setGraph] = useState(null);
   const [error, setError] = useState(null);
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     api.getSkillCoOccurrenceGraph().then(setGraph).catch((e) => setError(e.message));
   }, []);
 
-  const topNodes = graph
-    ? graph.nodes.slice().sort((a, b) => b.mention_count - a.mention_count)
-    : [];
-
-  const edgesByNode = (name) =>
+  const connectionsFor = (name) =>
     graph
       ? graph.edges
           .filter((e) => e.source === name || e.target === name)
           .sort((a, b) => b.weight - a.weight)
-          .slice(0, 6)
+          .slice(0, 10)
           .map((e) => ({ other: e.source === name ? e.target : e.source, weight: e.weight }))
       : [];
+
+  const selectedNode = graph?.nodes.find((n) => n.id === selected);
 
   return (
     <div>
       <PageHeader
         kicker="Explore"
         title="Skill Graph"
-        description="The most-mentioned skills and which other skills they co-occur with most strongly across real postings."
+        description="The most-mentioned skills, sized by mention count — edges show how strongly two skills co-occur in the same postings. Click a skill to see its strongest connections."
       />
 
       {error && <ErrorState message={error} />}
       {!graph && !error && <LoadingState label="Building the skill network…" />}
 
       {graph && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {topNodes.map((node) => {
-            const connections = edgesByNode(node.id);
-            return (
-              <Card key={node.id}>
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-display text-base font-bold text-forest">{node.label}</h3>
-                  <span className="text-xs text-forest/45">{node.mention_count.toLocaleString()} mentions</span>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_300px]">
+          <Card className="p-2 sm:p-4">
+            <div className="h-[420px] w-full sm:h-[520px]">
+              <ForceGraph
+                nodes={graph.nodes.map((n) => ({ id: n.id, label: n.label, value: n.mention_count }))}
+                edges={graph.edges}
+                color="var(--periwinkle)"
+                selectedId={selected}
+                onNodeClick={(node) => setSelected(node.id === selected ? null : node.id)}
+              />
+            </div>
+          </Card>
+
+          <Card className="h-fit">
+            <div className="flex items-center gap-2 text-forest/70">
+              <Share2 className="h-4 w-4" />
+              <span className="font-kicker text-xs uppercase tracking-widest">Connections</span>
+            </div>
+
+            {!selectedNode && (
+              <p className="mt-3 text-sm text-forest/50">Click a node to see what it co-occurs with most.</p>
+            )}
+
+            {selectedNode && (
+              <>
+                <p className="mt-3 text-sm font-semibold text-forest">{selectedNode.label}</p>
+                <p className="text-xs text-forest/45">{selectedNode.mention_count.toLocaleString()} mentions</p>
+                <div className="mt-3 flex flex-col gap-2">
+                  {connectionsFor(selected).map((c) => (
+                    <div key={c.other} className="flex items-center justify-between text-sm">
+                      <span className="text-forest/80">{c.other}</span>
+                      <Badge tone="periwinkle">{Math.round(c.weight * 100)}%</Badge>
+                    </div>
+                  ))}
+                  {connectionsFor(selected).length === 0 && (
+                    <p className="text-sm text-forest/50">No strong co-occurrences above threshold.</p>
+                  )}
                 </div>
-                {connections.length > 0 ? (
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    <Share2 className="mt-1 h-3.5 w-3.5 shrink-0 text-forest/30" />
-                    {connections.map((c) => (
-                      <Badge key={c.other} tone="periwinkle">
-                        {c.other} · {Math.round(c.weight * 100)}%
-                      </Badge>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-3 text-xs text-forest/40">No strong co-occurrences above threshold.</p>
-                )}
-              </Card>
-            );
-          })}
+              </>
+            )}
+          </Card>
         </div>
       )}
     </div>
