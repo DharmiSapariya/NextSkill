@@ -21,6 +21,8 @@ import Companies from "./app/pages/Companies";
 import History from "./app/pages/History";
 import SharedReport from "./app/pages/SharedReport";
 import Settings from "./app/pages/Settings";
+import AdminStats from "./app/pages/AdminStats";
+import AdminUsers from "./app/pages/AdminUsers";
 
 function App() {
   return (
@@ -62,6 +64,22 @@ function App() {
             <Route path="companies" element={<Companies />} />
             <Route path="history" element={<History />} />
             <Route path="settings" element={<Settings />} />
+            <Route
+              path="admin"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminStats />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="admin/users"
+              element={
+                <ProtectedRoute adminOnly>
+                  <AdminUsers />
+                </ProtectedRoute>
+              }
+            />
           </Route>
         </Routes>
       </AuthProvider>
