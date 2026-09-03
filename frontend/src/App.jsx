@@ -15,6 +15,8 @@ import JobDetail from "./app/pages/JobDetail";
 import SavedJobs from "./app/pages/SavedJobs";
 import Trends from "./app/pages/Trends";
 import Skills from "./app/pages/Skills";
+import RoleGraph from "./app/pages/RoleGraph";
+import SkillGraph from "./app/pages/SkillGraph";
 
 function App() {
   return (
@@ -50,6 +52,8 @@ function App() {
             <Route path="saved-jobs" element={<SavedJobs />} />
             <Route path="trends" element={<Trends />} />
             <Route path="skills" element={<Skills />} />
+            <Route path="roles" element={<RoleGraph />} />
+            <Route path="skill-graph" element={<SkillGraph />} />
           </Route>
         </Routes>
       </AuthProvider>
