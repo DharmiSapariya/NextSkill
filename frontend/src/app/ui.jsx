@@ -93,9 +93,10 @@ export function ErrorState({ message, onRetry }) {
   );
 }
 
-export function EmptyState({ title, description, action }) {
+export function EmptyState({ title, description, action, illustration = "/illustrations/5n.png" }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-forest/15 py-16 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-forest/15 py-14 text-center">
+      {illustration && <img src={illustration} alt="" className="mb-2 h-28 w-28 object-contain" />}
       <span className="font-display text-base font-bold text-forest">{title}</span>
       {description && <p className="max-w-sm text-sm text-forest/55">{description}</p>}
       {action}

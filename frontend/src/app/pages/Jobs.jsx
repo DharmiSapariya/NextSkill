@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
 import { MapPin, ArrowRight, ArrowLeft } from "lucide-react";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Input, Badge, LoadingState, ErrorState, EmptyState } from "../ui";
@@ -99,27 +100,34 @@ export default function Jobs() {
           <>
             <p className="mb-3 text-xs text-forest/50">{data.total.toLocaleString()} postings found</p>
             <div className="flex flex-col gap-3">
-              {data.results.map((job) => (
+              {data.results.map((job, i) => (
                 <Link key={job.id} to={`/app/jobs/${job.id}`}>
-                  <Card className="flex flex-wrap items-center justify-between gap-3 transition-colors hover:border-forest/25">
-                    <div>
-                      <h3 className="font-display text-base font-bold text-forest">{job.title}</h3>
-                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-forest/55">
-                        {job.company && <span>{job.company}</span>}
-                        {job.location && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" /> {job.location}
-                          </span>
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.03 }}
+                    whileHover={{ y: -3 }}
+                  >
+                    <Card className="flex flex-wrap items-center justify-between gap-3 transition-colors hover:border-forest/25 hover:shadow-[0_10px_28px_-16px_rgba(20,38,28,0.35)]">
+                      <div>
+                        <h3 className="font-display text-base font-bold text-forest">{job.title}</h3>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-forest/55">
+                          {job.company && <span>{job.company}</span>}
+                          {job.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" /> {job.location}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {job.seniority && job.seniority !== "unspecified" && (
+                          <Badge className="capitalize">{job.seniority}</Badge>
                         )}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {job.seniority && job.seniority !== "unspecified" && (
-                        <Badge className="capitalize">{job.seniority}</Badge>
-                      )}
-                      <ArrowRight className="h-4 w-4 text-forest/40" />
-                    </div>
-                  </Card>
+                        <ArrowRight className="h-4 w-4 text-forest/40" />
+                      </div>
+                    </Card>
+                  </motion.div>
                 </Link>
               ))}
             </div>

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Target, FileUp, Gauge, ArrowRight } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, LoadingState, ErrorState, Badge, StatTile } from "../ui";
+import { Card, Button, LoadingState, ErrorState, EmptyState, Badge, StatTile } from "../ui";
 
 const quickActions = [
   {
@@ -48,11 +48,18 @@ export default function Overview() {
 
   return (
     <div>
-      <PageHeader
-        kicker="Overview"
-        title={`Welcome back${user?.email ? `, ${user.email.split("@")[0]}` : ""}.`}
-        description="Everything you need to plan your next move, in one place."
-      />
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-6 overflow-hidden rounded-2xl border border-forest/10 bg-periwinkle/40 px-6 py-6 sm:px-8">
+        <div>
+          <span className="font-kicker text-xs uppercase tracking-widest text-forest/50">Overview</span>
+          <h1 className="mt-1 font-display text-[clamp(1.5rem,3vw,2.25rem)] font-bold text-forest">
+            {`Welcome back${user?.email ? `, ${user.email.split("@")[0]}` : ""}.`}
+          </h1>
+          <p className="mt-2 max-w-md text-sm text-forest/65">
+            Everything you need to plan your next move, in one place.
+          </p>
+        </div>
+        <img src="/illustrations/18n.png" alt="" className="hidden h-32 w-32 shrink-0 object-contain sm:block" />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile label="Your skills" value={user?.skills?.length ?? 0} sub="tracked in your profile" />
@@ -113,9 +120,15 @@ export default function Overview() {
         {!history && !error && <LoadingState label="Loading your recent activity…" />}
 
         {history && history.results.length === 0 && (
-          <Card className="text-center text-sm text-forest/60">
-            No reports yet — run your first skill-gap report to see it here.
-          </Card>
+          <EmptyState
+            title="No reports yet"
+            description="Run your first skill-gap report to see it here."
+            action={
+              <Button as={Link} to="/app/report" size="sm" className="mt-2">
+                Run a report
+              </Button>
+            }
+          />
         )}
 
         {history && history.results.length > 0 && (
