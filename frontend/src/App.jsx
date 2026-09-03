@@ -18,6 +18,8 @@ import Skills from "./app/pages/Skills";
 import RoleGraph from "./app/pages/RoleGraph";
 import SkillGraph from "./app/pages/SkillGraph";
 import Companies from "./app/pages/Companies";
+import History from "./app/pages/History";
+import SharedReport from "./app/pages/SharedReport";
 
 function App() {
   return (
@@ -35,6 +37,7 @@ function App() {
 
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/reports/:token" element={<SharedReport />} />
 
           <Route
             path="/app"
@@ -56,6 +59,7 @@ function App() {
             <Route path="roles" element={<RoleGraph />} />
             <Route path="skill-graph" element={<SkillGraph />} />
             <Route path="companies" element={<Companies />} />
+            <Route path="history" element={<History />} />
           </Route>
         </Routes>
       </AuthProvider>
