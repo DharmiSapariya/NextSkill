@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import TextRoll from "../components/TextRoll";
 import AnimatedThemeToggler from "../components/AnimatedThemeToggler";
 
@@ -34,12 +35,15 @@ export default function Navbar() {
 
         <div className="flex items-center gap-3">
           <AnimatedThemeToggler />
-          <a
-            href="#pricing"
+          <Link to="/login" className="hidden text-sm font-semibold text-forest/70 hover:text-forest sm:block">
+            Log in
+          </Link>
+          <Link
+            to="/signup"
             className="flex h-11 items-center justify-center rounded-full bg-periwinkle px-5 text-sm font-semibold text-forest transition-transform hover:scale-[1.03]"
           >
             Get Started Free
-          </a>
+          </Link>
         </div>
       </div>
     </header>

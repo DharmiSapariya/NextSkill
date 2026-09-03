@@ -10,7 +10,7 @@ const freeTier = {
   description:
     "Skill-gap recommendations, match score, salary prediction, resume parsing, and full recommendation history.",
   cta: "Get Started Free",
-  href: "#top",
+  href: "/signup",
 };
 
 const proTier = {

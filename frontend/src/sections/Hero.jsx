@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import DoodleCircle from "../components/DoodleCircle";
 import TypingAnimation from "../components/TypingAnimation";
 import DashboardMock from "../components/DashboardMock";
@@ -26,12 +27,12 @@ export default function Hero() {
         </p>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <a
-            href="#pricing"
+          <Link
+            to="/signup"
             className="flex h-12 items-center rounded-full bg-forest px-7 text-sm font-semibold text-cream transition-transform hover:scale-[1.03]"
           >
             Get Your Free Skill Report
-          </a>
+          </Link>
           <a
             href="#how-it-works"
             className="flex h-12 items-center rounded-full border border-forest px-7 text-sm font-semibold text-forest transition-colors hover:bg-forest/5"

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { ArrowRight, Mail, Sparkles } from "lucide-react";
 
 const productLinks = [
@@ -41,13 +42,13 @@ export default function Footer() {
           </p>
 
           <div className="relative mt-7 flex flex-wrap items-center justify-center gap-4">
-            <a
-              href="#top"
+            <Link
+              to="/signup"
               className="flex h-12 items-center gap-2 rounded-full bg-forest px-7 text-sm font-semibold text-cream transition-transform hover:scale-[1.03]"
             >
               Get Your Free Skill Report
               <ArrowRight className="h-4 w-4" />
-            </a>
+            </Link>
             <a
               href="#how-it-works"
               className="flex h-12 items-center rounded-full border border-forest/30 px-7 text-sm font-semibold text-forest transition-colors hover:bg-forest/5"

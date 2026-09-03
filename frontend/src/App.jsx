@@ -5,6 +5,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Landing from "./Landing";
 import AppShell from "./app/AppShell";
 import Overview from "./app/pages/Overview";
+import Login from "./app/pages/Login";
+import Signup from "./app/pages/Signup";
 
 function App() {
   return (
@@ -19,6 +21,9 @@ function App() {
               </AppLoadGate>
             }
           />
+
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
 
           <Route
             path="/app"

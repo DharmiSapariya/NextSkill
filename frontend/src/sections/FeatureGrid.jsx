@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import Highlighter from "../components/Highlighter";
 import Carousel006 from "../components/Carousel006";
 
@@ -35,12 +36,12 @@ export default function FeatureGrid() {
           </Highlighter>
           .
         </h2>
-        <a
-          href="#pricing"
+        <Link
+          to="/signup"
           className="mt-6 inline-flex h-12 items-center rounded-full bg-forest px-7 text-sm font-semibold text-lime transition-transform hover:scale-[1.03]"
         >
           Get Started Free
-        </a>
+        </Link>
       </div>
 
       <div className="mx-auto mt-10 max-w-5xl">
