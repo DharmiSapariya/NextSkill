@@ -20,6 +20,7 @@ import SkillGraph from "./app/pages/SkillGraph";
 import Companies from "./app/pages/Companies";
 import History from "./app/pages/History";
 import SharedReport from "./app/pages/SharedReport";
+import Settings from "./app/pages/Settings";
 
 function App() {
   return (
@@ -60,6 +61,7 @@ function App() {
             <Route path="skill-graph" element={<SkillGraph />} />
             <Route path="companies" element={<Companies />} />
             <Route path="history" element={<History />} />
+            <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
       </AuthProvider>
