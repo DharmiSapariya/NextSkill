@@ -7,8 +7,15 @@ const freeTier = {
   price: "$0/mo",
   icon: CheckCircle,
   gradient: "from-periwinkle to-periwinkle/70",
-  description:
-    "Skill-gap recommendations, match score, salary prediction, resume parsing, and full recommendation history.",
+  description: "Every core feature, forever — no trial, no credit card.",
+  features: [
+    "Evidence-backed skill-gap recommendations",
+    "Match score & salary prediction",
+    "Resume auto-parsing",
+    "Shareable public report links",
+    "20 report runs kept in your history",
+    "3 evidence postings shown per gap skill",
+  ],
   cta: "Get Started Free",
   href: "/signup",
 };
@@ -18,8 +25,12 @@ const proTier = {
   price: "Contact for pricing",
   icon: Sparkles,
   gradient: "from-lime to-lime/70",
-  description:
-    "Everything in Free, plus the role-transition graph, shareable public reports, and priority ingestion.",
+  description: "Same features as Free — Pro just goes deeper on the same data.",
+  features: [
+    "Everything in Free",
+    "100 report runs kept in your history",
+    "10 evidence postings shown per gap skill",
+  ],
   cta: "Join the Waitlist",
   href: "#top",
 };
