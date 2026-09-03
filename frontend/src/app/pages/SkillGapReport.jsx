@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { X, Plus, ArrowRight, Gauge } from "lucide-react";
+import { motion } from "framer-motion";
+import { X, Plus, ArrowRight, Gauge, Trophy, Share2, Copy, Check, ChevronDown, TrendingUp, Layers, Target } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Badge, LoadingState, EmptyState, InfoHint } from "../ui";
@@ -8,6 +9,9 @@ import Autocomplete from "../Autocomplete";
 import { TRACKED_ROLES } from "../../lib/roles";
 import { colorFor } from "../../lib/skillCategories";
 import { useToast } from "../../context/ToastContext";
+
+const EVIDENCE_LIMITS = { free: 3, pro: 10 };
+const RANK_ACCENTS = ["var(--lime)", "var(--periwinkle)", "var(--coral)"];
 
 function SkillChip({ skill, onRemove }) {
   return (
@@ -30,11 +34,101 @@ function SkillChip({ skill, onRemove }) {
 
 function DemandBar({ pct, skill }) {
   return (
-    <div className="h-2 flex-1 rounded-full bg-forest/8">
-      <div
+    <div className="h-2 flex-1 overflow-hidden rounded-full bg-forest/8">
+      <motion.div
         className="h-full rounded-full"
-        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: colorFor(skill) }}
+        style={{ backgroundColor: colorFor(skill) }}
+        initial={{ width: 0 }}
+        animate={{ width: `${Math.min(pct, 100)}%` }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
       />
+    </div>
+  );
+}
+
+function RankBadge({ rank }) {
+  return (
+    <span
+      className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-display text-sm font-bold text-forest"
+      style={{ backgroundColor: RANK_ACCENTS[rank - 1] || "rgba(20,38,28,0.08)" }}
+    >
+      {rank === 1 && (
+        <Trophy className="absolute -right-1.5 -top-1.5 h-3.5 w-3.5 rounded-full bg-cream p-0.5 text-forest shadow-sm" />
+      )}
+      {rank}
+    </span>
+  );
+}
+
+function ShareControl({ historyId }) {
+  const toast = useToast();
+  const [link, setLink] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleShare = async () => {
+    setLoading(true);
+    try {
+      const { share_path } = await api.shareHistoryEntry(historyId);
+      setLink(`${window.location.origin}${share_path}`);
+      toast.success("Report shared — link ready to copy");
+    } catch {
+      toast.error("Couldn't share this report — try again");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!historyId) return null;
+
+  if (link) {
+    return (
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => {
+          navigator.clipboard?.writeText(link);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+      >
+        {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+        {copied ? "Copied" : "Copy share link"}
+      </Button>
+    );
+  }
+
+  return (
+    <Button variant="secondary" size="sm" onClick={handleShare} disabled={loading}>
+      <Share2 className="h-3.5 w-3.5" /> {loading ? "Sharing…" : "Share this report"}
+    </Button>
+  );
+}
+
+function EvidenceList({ evidence }) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? evidence : evidence.slice(0, 4);
+  return (
+    <div className="mt-4 border-t border-forest/10 pt-4">
+      <span className="font-kicker text-[11px] uppercase tracking-widest text-forest/40">Evidence</span>
+      <ul className="mt-2 flex flex-col gap-2">
+        {visible.map((job, i) => (
+          <li key={i} className="text-sm text-forest/70">
+            <span className="font-semibold text-forest">{job.title}</span>
+            {job.company && <> · {job.company}</>} · {job.location}
+          </li>
+        ))}
+      </ul>
+      {evidence.length > 4 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2 flex items-center gap-1 text-xs font-semibold text-forest/50 hover:text-forest"
+        >
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+          {expanded ? "Show fewer" : `+${evidence.length - 4} more`}
+        </button>
+      )}
     </div>
   );
 }
@@ -47,6 +141,7 @@ export default function SkillGapReport() {
   const [skills, setSkills] = useState(user?.skills || []);
   const [skillInput, setSkillInput] = useState("");
   const [result, setResult] = useState(null);
+  const [historyId, setHistoryId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -75,6 +170,7 @@ export default function SkillGapReport() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setHistoryId(null);
     try {
       const data = await api.recommendWithEvidence(role, skills);
       setResult(data);
@@ -84,6 +180,13 @@ export default function SkillGapReport() {
           ? `Found ${data.recommendations.length} gap skill${data.recommendations.length === 1 ? "" : "s"} — saved to your history`
           : "No gaps found — saved to your history"
       );
+      // The run above was just recorded server-side, so the newest history
+      // entry is this one — grab its id so "Share this report" works
+      // without leaving the page.
+      api
+        .getHistory({ limit: 1 })
+        .then((res) => setHistoryId(res.results[0]?.id ?? null))
+        .catch(() => {});
     } catch (err) {
       setError(err.message);
       toast.error(err.message || "Couldn't run that report");
@@ -92,6 +195,11 @@ export default function SkillGapReport() {
     }
   };
 
+  const sortedRecs = result ? [...result.recommendations].sort((a, b) => b.market_demand_pct - a.market_demand_pct) : [];
+  const avgDemand =
+    sortedRecs.length > 0 ? Math.round(sortedRecs.reduce((sum, r) => sum + r.market_demand_pct, 0) / sortedRecs.length) : 0;
+  const evidenceLimit = result?.tier === "pro" ? EVIDENCE_LIMITS.pro : EVIDENCE_LIMITS.free;
+
   return (
     <div>
       <PageHeader
@@ -99,6 +207,16 @@ export default function SkillGapReport() {
         title="Skill-Gap Report"
         description="Compare your skills against real job postings for a target role — every gap comes with the evidence behind it."
       />
+
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-6 overflow-hidden rounded-2xl border border-forest/10 bg-periwinkle/35 px-6 py-6 sm:px-8">
+        <div>
+          <span className="font-kicker text-xs uppercase tracking-widest text-forest/50">Evidence-backed</span>
+          <p className="mt-2 max-w-xl font-display text-xl font-bold text-forest sm:text-2xl">
+            Every gap skill below is backed by real postings — no black-box score, just the evidence.
+          </p>
+        </div>
+        <img src="/illustrations/2N.png" alt="" className="hidden h-28 w-28 shrink-0 object-contain sm:block" />
+      </div>
 
       <Card>
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -171,53 +289,82 @@ export default function SkillGapReport() {
                 )}
               </p>
             </div>
-            <Button as={Link} to={`/app/match?role=${encodeURIComponent(result.target_role)}`} variant="secondary" size="sm">
-              <Gauge className="h-4 w-4" /> Check match score & salary
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <ShareControl historyId={historyId} />
+              <Button as={Link} to={`/app/match?role=${encodeURIComponent(result.target_role)}`} variant="secondary" size="sm">
+                <Gauge className="h-4 w-4" /> Check match score & salary
+              </Button>
+            </div>
           </div>
 
-          {result.recommendations.length === 0 ? (
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Card className="p-3 text-center">
+              <p className="font-display text-xl font-bold text-forest">{result.total_market_jobs.toLocaleString()}</p>
+              <p className="mt-0.5 text-[11px] uppercase tracking-wide text-forest/45">Postings analyzed</p>
+            </Card>
+            <Card className="p-3 text-center">
+              <p className="flex items-center justify-center gap-1 font-display text-xl font-bold text-forest">
+                <Layers className="h-4 w-4 text-forest/40" /> {skills.length}
+              </p>
+              <p className="mt-0.5 text-[11px] uppercase tracking-wide text-forest/45">Skills you have</p>
+            </Card>
+            <Card className="p-3 text-center">
+              <p className="flex items-center justify-center gap-1 font-display text-xl font-bold text-forest">
+                <Target className="h-4 w-4 text-forest/40" /> {sortedRecs.length}
+              </p>
+              <p className="mt-0.5 text-[11px] uppercase tracking-wide text-forest/45">Gaps found</p>
+            </Card>
+            <Card className="p-3 text-center">
+              <p className="flex items-center justify-center gap-1 font-display text-xl font-bold text-forest">
+                <TrendingUp className="h-4 w-4 text-forest/40" /> {avgDemand}%
+              </p>
+              <p className="mt-0.5 text-[11px] uppercase tracking-wide text-forest/45">Avg. gap demand</p>
+            </Card>
+          </div>
+
+          {sortedRecs.length === 0 ? (
             <EmptyState
               title="No gaps found"
               description="Your listed skills already cover the top market demands for this role."
             />
           ) : (
             <div className="flex flex-col gap-4">
-              {result.recommendations.map((rec) => (
-                <Card key={rec.skill}>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="font-display text-base font-bold text-forest">{rec.skill}</h3>
-                    <span className="flex items-center gap-1.5">
-                      <Badge style={{ backgroundColor: colorFor(rec.skill), opacity: 0.9 }}>
-                        {rec.market_demand_pct}% of postings
-                      </Badge>
-                      <InfoHint text={`Mentioned in ${rec.market_demand_pct}% of real postings analyzed for this role — one of the top gaps between your skills and the market.`} />
-                    </span>
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <DemandBar pct={rec.market_demand_pct} skill={rec.skill} />
-                    <span className="w-32 shrink-0 text-xs text-forest/60">
-                      {rec.postings_mentioning_it.toLocaleString()} postings
-                    </span>
-                  </div>
-
-                  {rec.evidence?.length > 0 && (
-                    <div className="mt-4 border-t border-forest/10 pt-4">
-                      <span className="font-kicker text-[11px] uppercase tracking-widest text-forest/40">
-                        Evidence
+              {sortedRecs.map((rec, i) => (
+                <motion.div
+                  key={rec.skill}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, delay: Math.min(i, 8) * 0.04 }}
+                >
+                  <Card>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        {i < 3 && <RankBadge rank={i + 1} />}
+                        <h3 className="font-display text-base font-bold text-forest">{rec.skill}</h3>
+                      </div>
+                      <span className="flex items-center gap-1.5">
+                        <Badge style={{ backgroundColor: colorFor(rec.skill), opacity: 0.9 }}>
+                          {rec.market_demand_pct}% of postings
+                        </Badge>
+                        <InfoHint text={`Mentioned in ${rec.market_demand_pct}% of real postings analyzed for this role — one of the top gaps between your skills and the market.`} />
                       </span>
-                      <ul className="mt-2 flex flex-col gap-2">
-                        {rec.evidence.map((job, i) => (
-                          <li key={i} className="text-sm text-forest/70">
-                            <span className="font-semibold text-forest">{job.title}</span>
-                            {job.company && <> · {job.company}</>} · {job.location}
-                          </li>
-                        ))}
-                      </ul>
                     </div>
-                  )}
-                </Card>
+                    <div className="mt-3 flex items-center gap-3">
+                      <DemandBar pct={rec.market_demand_pct} skill={rec.skill} />
+                      <span className="w-32 shrink-0 text-xs text-forest/60">
+                        {rec.postings_mentioning_it.toLocaleString()} postings
+                      </span>
+                    </div>
+
+                    {rec.evidence?.length > 0 && <EvidenceList evidence={rec.evidence} />}
+                  </Card>
+                </motion.div>
               ))}
+
+              <p className="text-center text-[11px] text-forest/40">
+                Showing up to {evidenceLimit} evidence postings per skill on your {result.tier === "pro" ? "Pro" : "Free"} plan
+                {result.tier !== "pro" && " — Pro accounts see up to 10"}.
+              </p>
             </div>
           )}
 
@@ -226,7 +373,7 @@ export default function SkillGapReport() {
             <Link to="/app/history" className="underline underline-offset-2">
               history
             </Link>
-            , where you can share it as a public link.
+            , where you can share it as a public link anytime.
           </p>
         </div>
       )}

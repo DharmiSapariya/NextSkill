@@ -20,10 +20,15 @@ export function ToastProvider({ children }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // `opts` is either a plain number (duration, the original signature) or
+  // { duration, action: { label, onClick } } for a toast with a button —
+  // kept backwards-compatible so every existing toast.success("...") call
+  // still works unchanged.
   const push = useCallback(
-    (message, tone = "info", duration = DEFAULT_DURATION) => {
+    (message, tone = "info", opts) => {
+      const { duration = DEFAULT_DURATION, action } = typeof opts === "number" ? { duration: opts } : opts || {};
       const id = ++idRef.current;
-      setToasts((prev) => [...prev, { id, message, tone }].slice(-4));
+      setToasts((prev) => [...prev, { id, message, tone, action }].slice(-4));
       if (duration > 0) setTimeout(() => dismiss(id), duration);
       return id;
     },
@@ -32,9 +37,9 @@ export function ToastProvider({ children }) {
 
   const api = useRef({
     push,
-    success: (message, duration) => push(message, "success", duration),
-    error: (message, duration) => push(message, "error", duration),
-    info: (message, duration) => push(message, "info", duration),
+    success: (message, opts) => push(message, "success", opts),
+    error: (message, opts) => push(message, "error", opts),
+    info: (message, opts) => push(message, "info", opts),
     dismiss,
   }).current;
 
@@ -58,6 +63,18 @@ export function ToastProvider({ children }) {
               >
                 <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone.iconColor}`} />
                 <p className="flex-1 text-sm font-medium leading-snug">{t.message}</p>
+                {t.action && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      t.action.onClick();
+                      dismiss(t.id);
+                    }}
+                    className="shrink-0 rounded-full bg-black/10 px-2.5 py-1 text-xs font-bold underline-offset-2 hover:underline"
+                  >
+                    {t.action.label}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => dismiss(t.id)}
