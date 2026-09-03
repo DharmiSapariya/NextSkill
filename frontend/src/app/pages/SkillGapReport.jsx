@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { X, Plus, ArrowRight, Gauge } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
-import { PageHeader, Card, Button, Input, Badge, LoadingState, ErrorState, EmptyState } from "../ui";
+import { PageHeader, Card, Button, Input, Badge, LoadingState, EmptyState } from "../ui";
 
 function SkillChip({ skill, onRemove }) {
   return (
