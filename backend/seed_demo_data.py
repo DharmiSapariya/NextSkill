@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nextskill.seed.demo")
 
 RNG_SEED = 20260101
-POSTINGS_PER_ROLE = (1400, 2400)  # random range, so roles don't all look identical
+POSTINGS_PER_ROLE = (2600, 4200)  # random range, so roles don't all look identical
 POSTING_WINDOW_DAYS = 365  # a full year — several /trends 30-day comparison windows with room to spare
 
 COMPANIES: List[str] = [
@@ -41,37 +41,57 @@ COMPANIES: List[str] = [
     "Uber", "Lyft", "Airbnb", "DoorDash", "Instacart", "Pinterest",
     "Snap Inc", "Reddit", "LinkedIn", "Spotify", "Dropbox", "Slack", "Zoom",
     "eBay", "Etsy", "Booking.com", "Expedia Group", "Roku", "Yelp",
+    "X (Twitter)", "TikTok", "ByteDance", "Discord", "Twitch", "Squarespace",
+    "Wix", "GoDaddy", "Shopify", "Craigslist",
     # Cloud / dev tools / infra
     "VMware", "ServiceNow", "Atlassian", "Twilio", "Datadog",
     "Snowflake", "MongoDB Inc", "Databricks", "Palantir Technologies",
     "HashiCorp", "GitLab", "GitHub", "Figma", "Notion Labs", "Asana",
     "Cloudflare", "DigitalOcean", "Okta", "Splunk", "CrowdStrike",
-    "Palo Alto Networks", "Fortinet", "New Relic", "Elastic",
+    "Palo Alto Networks", "Fortinet", "New Relic", "Elastic", "Confluent",
+    "PagerDuty", "Sentry", "Vercel", "Linear", "Miro", "Zapier",
+    "Postman Inc", "JetBrains", "Red Hat", "Canonical", "SUSE",
     # Fintech / payments
     "Stripe", "Square", "PayPal", "Coinbase", "Robinhood", "Block",
     "Affirm", "Chime", "Plaid", "Visa", "Mastercard", "American Express",
+    "Klarna", "Revolut", "Wise", "Brex", "Ramp", "Marqeta", "Adyen",
+    "Nubank", "SoFi", "Intuit",
     # Enterprise / consulting / hardware
     "Dell Technologies", "HP Inc", "Lenovo", "Samsung Electronics",
     "Sony", "LG Electronics", "Qualcomm", "AMD", "Broadcom",
     "Texas Instruments", "Micron Technology", "Accenture", "Deloitte",
     "McKinsey & Company", "EY", "PwC", "KPMG", "Booz Allen Hamilton",
     "Infosys", "TCS", "Wipro", "Cognizant", "Capgemini", "DXC Technology",
+    "Hitachi", "Panasonic", "Xerox", "Western Digital", "Seagate Technology",
+    "Arm Holdings", "ASML", "TSMC", "Corning",
     # Games / media / creative tools
     "Epic Games", "Unity Technologies", "Electronic Arts",
     "Activision Blizzard", "Roblox", "Canva", "Grammarly", "Duolingo",
-    "Airtable", "Autodesk",
+    "Airtable", "Autodesk", "Riot Games", "Valve", "Take-Two Interactive",
+    "Ubisoft", "Niantic", "Spotify Studios", "iHeartMedia",
     # Finance / banking / healthcare / industrial
     "Goldman Sachs", "JPMorgan Chase", "Morgan Stanley", "Capital One",
     "Wells Fargo", "Bank of America", "Citigroup", "UnitedHealth Group",
     "CVS Health", "Johnson & Johnson", "Pfizer", "Moderna",
     "Boston Consulting Group", "Siemens", "General Electric",
     "Ford Motor Company", "General Motors", "Rivian", "Waymo",
-    "Boeing", "Lockheed Martin", "SpaceX", "Tesla",
+    "Boeing", "Lockheed Martin", "SpaceX", "Tesla", "Northrop Grumman",
+    "Raytheon Technologies", "Blue Origin", "Anduril Industries",
+    "Bloomberg LP", "Fidelity Investments", "Charles Schwab", "BlackRock",
+    "State Street", "Humana", "Cigna", "Eli Lilly", "AbbVie", "Merck",
     # Retail / telecom / entertainment
     "Walmart", "Target", "Costco", "Home Depot", "Nike", "Disney",
     "Warner Bros Discovery", "Comcast", "AT&T", "Verizon", "T-Mobile",
+    "Best Buy", "Lowe's", "Chipotle", "Starbucks", "Airbnb Design",
+    "Sonos", "GoPro", "Peloton Interactive",
     # AI-native
-    "OpenAI", "Anthropic", "Hugging Face", "Scale AI",
+    "OpenAI", "Anthropic", "Hugging Face", "Scale AI", "Cohere",
+    "Stability AI", "Mistral AI", "Perplexity AI", "Runway",
+    # International tech
+    "SAP Labs", "Spotify AB", "Klarna Bank", "Booking Holdings",
+    "Rakuten", "Alibaba Group", "Tencent", "Baidu", "Xiaomi", "Grab Holdings",
+    "Sea Limited", "Zalando", "Delivery Hero", "N26", "Wise plc",
+    "Infosys BPM", "HCLTech", "Tech Mahindra", "Larsen & Toubro Infotech",
 ]
 
 LOCATIONS: List[str] = [
@@ -85,7 +105,16 @@ LOCATIONS: List[str] = [
     "Paris, France", "Madrid, Spain", "Stockholm, Sweden", "Zurich, Switzerland",
     "Tokyo, Japan", "Tel Aviv, Israel", "Sao Paulo, Brazil", "Mexico City, Mexico",
     "Hyderabad, India", "Melbourne, Australia", "Dallas, TX", "Minneapolis, MN",
-    "Philadelphia, PA", "Salt Lake City, UT",
+    "Philadelphia, PA", "Salt Lake City, UT", "Phoenix, AZ", "San Diego, CA",
+    "Houston, TX", "Detroit, MI", "Columbus, OH", "Nashville, TN",
+    "Ottawa, ON", "Montreal, QC", "Edinburgh, UK", "Manchester, UK",
+    "Munich, Germany", "Copenhagen, Denmark", "Oslo, Norway", "Helsinki, Finland",
+    "Warsaw, Poland", "Prague, Czechia", "Barcelona, Spain", "Milan, Italy",
+    "Seoul, South Korea", "Shanghai, China", "Hong Kong", "Taipei, Taiwan",
+    "Jakarta, Indonesia", "Manila, Philippines", "Ho Chi Minh City, Vietnam",
+    "Auckland, New Zealand", "Cape Town, South Africa", "Nairobi, Kenya",
+    "Dubai, UAE", "Buenos Aires, Argentina", "Bogota, Colombia",
+    "Chennai, India", "Gurgaon, India", "Noida, India",
 ]
 
 SENIORITY_PREFIXES: List[Tuple[str, float]] = [
@@ -272,9 +301,64 @@ if _missing or _extra:
         f"ROLE_SKILL_POOLS is out of sync with TRACKED_ROLES — missing={_missing} extra={_extra}"
     )
 
+# Broad category label per role, shown alongside each posting — varies the
+# corpus beyond a single flat "IT Jobs" bucket without needing a new column.
+ROLE_CATEGORY_LABELS: Dict[str, str] = {
+    "software engineer": "Software Development",
+    "backend developer": "Software Development",
+    "frontend developer": "Software Development",
+    "full stack developer": "Software Development",
+    "data scientist": "Data & Analytics",
+    "data analyst": "Data & Analytics",
+    "data engineer": "Data & Analytics",
+    "machine learning engineer": "AI & Machine Learning",
+    "ai engineer": "AI & Machine Learning",
+    "devops engineer": "Cloud & Infrastructure",
+    "cloud engineer": "Cloud & Infrastructure",
+    "site reliability engineer": "Cloud & Infrastructure",
+    "mobile developer": "Mobile Development",
+    "android developer": "Mobile Development",
+    "ios developer": "Mobile Development",
+    "qa engineer": "Quality Assurance",
+    "test automation engineer": "Quality Assurance",
+    "cybersecurity analyst": "Security",
+    "database administrator": "Data & Analytics",
+    "product manager": "Product",
+    "ui ux designer": "Design & UX",
+}
+
+_missing_categories = set(TRACKED_ROLES) - set(ROLE_CATEGORY_LABELS)
+if _missing_categories:
+    raise RuntimeError(f"ROLE_CATEGORY_LABELS is missing roles: {_missing_categories}")
+
 
 MIN_SKILLS_PER_JOB = 4
 MAX_SKILLS_PER_JOB = 12  # keeps individual postings realistic even though pools now run 13-22 skills deep
+
+# Several phrasings per posting so the corpus doesn't read as one template
+# copy-pasted thousands of times — each still names the company, role,
+# location, and a sample of the role's actual skill pool.
+DESCRIPTION_TEMPLATES: Tuple[str, ...] = (
+    "{company} is hiring a {title} to join our team in {location}. "
+    "You'll work across our stack with a strong focus on {skills}, "
+    "collaborating closely with cross-functional teams to ship "
+    "reliable, well-tested features.",
+    "Join {company} as a {title} based in {location}. We're looking for "
+    "someone comfortable with {skills} who can own problems end to end "
+    "and communicate clearly with the rest of the team.",
+    "{company} is growing its team and looking for a {title} in "
+    "{location}. Day to day you'll lean on {skills}, working alongside "
+    "product, design, and engineering to ship things customers notice.",
+    "As a {title} at {company} ({location}), you'll bring hands-on "
+    "experience with {skills} to a team that values clean code, honest "
+    "estimates, and shipping in small, reviewable increments.",
+    "{company} is looking for a {title} to help scale our platform from "
+    "{location}. Strong fundamentals in {skills} are a must; experience "
+    "mentoring other engineers is a plus.",
+    "We're expanding the team at {company} and need a {title} in "
+    "{location} who's fluent in {skills} and enjoys working close to "
+    "the metal on real production systems.",
+)
 
 
 def _pick_title(role: str, rng: random.Random) -> str:
@@ -342,19 +426,20 @@ def seed_demo_database(reset: bool = False) -> int:
                 salary_mid = int(rng.randint(low, high) * seniority_bump)
                 spread = int(salary_mid * 0.12)
 
+                description = rng.choice(DESCRIPTION_TEMPLATES).format(
+                    company=company.name,
+                    title=title,
+                    location=location,
+                    skills=", ".join(rng.sample(pool, k=min(3, len(pool)))),
+                )
+
                 job = Job(
                     external_id=f"demo-{external_id_counter}",
                     title=title,
                     company_id=company.id,
                     location=location,
-                    description=(
-                        f"{company.name} is hiring a {title} to join our team in "
-                        f"{location}. You'll work across our stack with a strong focus "
-                        f"on {', '.join(rng.sample(pool, k=min(3, len(pool))))}, "
-                        "collaborating closely with cross-functional teams to ship "
-                        "reliable, well-tested features."
-                    ),
-                    category="IT Jobs",
+                    description=description,
+                    category=ROLE_CATEGORY_LABELS[role],
                     source=rng.choice(["adzuna", "remoteok"]),
                     posted_date=posted_date,
                     salary_min=max(0, salary_mid - spread),
