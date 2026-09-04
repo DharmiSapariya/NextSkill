@@ -26,8 +26,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nextskill.seed.demo")
 
 RNG_SEED = 20260101
-POSTINGS_PER_ROLE = (220, 380)  # random range, so roles don't all look identical
-POSTING_WINDOW_DAYS = 180  # spans several /trends 30-day comparison windows with room to spare
+POSTINGS_PER_ROLE = (900, 1600)  # random range, so roles don't all look identical
+POSTING_WINDOW_DAYS = 365  # a full year — several /trends 30-day comparison windows with room to spare
 
 COMPANIES: List[str] = [
     "Acme Corp", "Globex", "Initech", "Umbrella Analytics", "Stark Systems",
@@ -45,16 +45,29 @@ COMPANIES: List[str] = [
     "Glacier Security", "Harborline Payments", "Anchorpoint Software", "Lumen Grid",
     "Nimbus Retail Tech", "Kestrel Biotech", "Foundry Interactive", "Driftwood Media",
     "Copperline Manufacturing", "Silverleaf Insurance", "Basecamp Mobility", "Everline Energy",
+    "Vantage Point Analytics", "Bramblewood Studios", "Greenfield Robotics", "Cobalt Cloudworks",
+    "Highline Fintech", "Amberwave Networks", "Truenorth Logistics", "Fernbank Health",
+    "Ridgeline Semiconductors", "Palisade Security", "Moonlark Games", "Cinderpath Media",
+    "Brightloop Education", "Waybridge Insurance", "Clearwater Payments", "Ashgrove Retail",
+    "Sable Ridge Capital", "Lanternfish Labs", "Overpass Mobility", "Timberline Cloud",
+    "Coralwatch Marine Tech", "Ferncrest Biotech", "Duskwood Interactive", "Halcyon Systems",
+    "Ninebark Data", "Sparrowhawk Aerospace", "Millrace Manufacturing", "Wrenfield Analytics",
+    "Blackthorn Security", "Goldleaf Commerce", "Frostline Devices", "Suncrest Energy",
+    "Ivywood Consulting", "Pinegate Software", "Rustbelt Robotics", "Argentum Bank",
 ]
 
 LOCATIONS: List[str] = [
-    "Remote", "Remote", "Remote", "Remote (US)", "Remote (EU)",  # weighted — remote is common in the real data too
+    "Remote", "Remote", "Remote", "Remote (US)", "Remote (EU)", "Remote (APAC)",  # weighted — remote is common in the real data too
     "San Francisco, CA", "New York, NY", "Seattle, WA", "Austin, TX",
     "Boston, MA", "Chicago, IL", "Denver, CO", "Los Angeles, CA",
     "Atlanta, GA", "Toronto, ON", "London, UK", "Berlin, Germany",
     "Bangalore, India", "Dublin, Ireland", "Amsterdam, Netherlands",
     "Singapore", "Sydney, Australia", "Vancouver, BC", "Portland, OR",
     "Raleigh, NC", "Miami, FL", "Washington, DC", "Pune, India",
+    "Paris, France", "Madrid, Spain", "Stockholm, Sweden", "Zurich, Switzerland",
+    "Tokyo, Japan", "Tel Aviv, Israel", "Sao Paulo, Brazil", "Mexico City, Mexico",
+    "Hyderabad, India", "Melbourne, Australia", "Dallas, TX", "Minneapolis, MN",
+    "Philadelphia, PA", "Salt Lake City, UT",
 ]
 
 SENIORITY_PREFIXES: List[Tuple[str, float]] = [
