@@ -3,9 +3,14 @@
 seed_test_data.py is a small deterministic fixture that test_skill_graph.py
 and friends assert exact values against — it must stay untouched. This is a
 separate script for actually trying the product locally: every tracked role,
-dozens of companies, hundreds of postings per role, varied seniority and
-location, and posting dates spread across ~90 days so /trends has two real
-windows to compare.
+a roster of well-known companies, thousands of postings per role drawn from
+the full skills_taxonomy.py breadth (250+ skills), varied seniority and
+location, and posting dates spread across a full year so /trends has several
+real windows to compare.
+
+Company names are recognizable real employers, used purely as realistic
+local fixture data — nothing here is scraped or claims to be a genuine
+posting from that company.
 
 Usage:
     python3 seed_demo_data.py            # skip if jobs already exist
@@ -26,34 +31,47 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nextskill.seed.demo")
 
 RNG_SEED = 20260101
-POSTINGS_PER_ROLE = (900, 1600)  # random range, so roles don't all look identical
+POSTINGS_PER_ROLE = (1400, 2400)  # random range, so roles don't all look identical
 POSTING_WINDOW_DAYS = 365  # a full year — several /trends 30-day comparison windows with room to spare
 
 COMPANIES: List[str] = [
-    "Acme Corp", "Globex", "Initech", "Umbrella Analytics", "Stark Systems",
-    "Wayne Digital", "Hooli", "Pied Piper", "Massive Dynamic", "Soylent Labs",
-    "Vandelay Industries", "Cyberdyne Systems", "Aperture Data", "Tyrell Cloud",
-    "Wonka Software", "Gringotts Fintech", "Oscorp Health", "LexCorp",
-    "Prestige Worldwide", "Dunder Mifflin Tech", "Bluth Digital", "Sterling Cooper Labs",
-    "Monsters Inc Engineering", "Weyland-Yutani", "Blue Sun Corporation",
-    "Rekall Systems", "Nakatomi Trading", "Gekko & Co", "Hanso Foundation",
-    "Zorg Industries", "Northwind Traders", "Contoso Cloud", "Fabrikam Analytics",
-    "Trask Bio", "Sirius Cybernetics", "Buy N Large", "Genco Pura",
-    "Stellar Forge Labs", "Quantum Loop", "Northstar Analytics", "Ironclad Systems",
-    "Bright Path Health", "Vertex Robotics", "Cascade Data Co", "Meridian Cloud",
-    "Solaris Fintech", "Pinnacle Logistics", "Orbital Devices", "Redwood AI",
-    "Glacier Security", "Harborline Payments", "Anchorpoint Software", "Lumen Grid",
-    "Nimbus Retail Tech", "Kestrel Biotech", "Foundry Interactive", "Driftwood Media",
-    "Copperline Manufacturing", "Silverleaf Insurance", "Basecamp Mobility", "Everline Energy",
-    "Vantage Point Analytics", "Bramblewood Studios", "Greenfield Robotics", "Cobalt Cloudworks",
-    "Highline Fintech", "Amberwave Networks", "Truenorth Logistics", "Fernbank Health",
-    "Ridgeline Semiconductors", "Palisade Security", "Moonlark Games", "Cinderpath Media",
-    "Brightloop Education", "Waybridge Insurance", "Clearwater Payments", "Ashgrove Retail",
-    "Sable Ridge Capital", "Lanternfish Labs", "Overpass Mobility", "Timberline Cloud",
-    "Coralwatch Marine Tech", "Ferncrest Biotech", "Duskwood Interactive", "Halcyon Systems",
-    "Ninebark Data", "Sparrowhawk Aerospace", "Millrace Manufacturing", "Wrenfield Analytics",
-    "Blackthorn Security", "Goldleaf Commerce", "Frostline Devices", "Suncrest Energy",
-    "Ivywood Consulting", "Pinegate Software", "Rustbelt Robotics", "Argentum Bank",
+    # Big tech / consumer internet
+    "Google", "Microsoft", "Amazon", "Apple", "Meta", "Netflix", "Nvidia",
+    "Adobe", "Salesforce", "Oracle", "IBM", "Intel", "Cisco", "SAP",
+    "Uber", "Lyft", "Airbnb", "DoorDash", "Instacart", "Pinterest",
+    "Snap Inc", "Reddit", "LinkedIn", "Spotify", "Dropbox", "Slack", "Zoom",
+    "eBay", "Etsy", "Booking.com", "Expedia Group", "Roku", "Yelp",
+    # Cloud / dev tools / infra
+    "VMware", "ServiceNow", "Atlassian", "Twilio", "Datadog",
+    "Snowflake", "MongoDB Inc", "Databricks", "Palantir Technologies",
+    "HashiCorp", "GitLab", "GitHub", "Figma", "Notion Labs", "Asana",
+    "Cloudflare", "DigitalOcean", "Okta", "Splunk", "CrowdStrike",
+    "Palo Alto Networks", "Fortinet", "New Relic", "Elastic",
+    # Fintech / payments
+    "Stripe", "Square", "PayPal", "Coinbase", "Robinhood", "Block",
+    "Affirm", "Chime", "Plaid", "Visa", "Mastercard", "American Express",
+    # Enterprise / consulting / hardware
+    "Dell Technologies", "HP Inc", "Lenovo", "Samsung Electronics",
+    "Sony", "LG Electronics", "Qualcomm", "AMD", "Broadcom",
+    "Texas Instruments", "Micron Technology", "Accenture", "Deloitte",
+    "McKinsey & Company", "EY", "PwC", "KPMG", "Booz Allen Hamilton",
+    "Infosys", "TCS", "Wipro", "Cognizant", "Capgemini", "DXC Technology",
+    # Games / media / creative tools
+    "Epic Games", "Unity Technologies", "Electronic Arts",
+    "Activision Blizzard", "Roblox", "Canva", "Grammarly", "Duolingo",
+    "Airtable", "Autodesk",
+    # Finance / banking / healthcare / industrial
+    "Goldman Sachs", "JPMorgan Chase", "Morgan Stanley", "Capital One",
+    "Wells Fargo", "Bank of America", "Citigroup", "UnitedHealth Group",
+    "CVS Health", "Johnson & Johnson", "Pfizer", "Moderna",
+    "Boston Consulting Group", "Siemens", "General Electric",
+    "Ford Motor Company", "General Motors", "Rivian", "Waymo",
+    "Boeing", "Lockheed Martin", "SpaceX", "Tesla",
+    # Retail / telecom / entertainment
+    "Walmart", "Target", "Costco", "Home Depot", "Nike", "Disney",
+    "Warner Bros Discovery", "Comcast", "AT&T", "Verizon", "T-Mobile",
+    # AI-native
+    "OpenAI", "Anthropic", "Hugging Face", "Scale AI",
 ]
 
 LOCATIONS: List[str] = [
@@ -103,98 +121,144 @@ SALARY_BASE_RANGES: Dict[str, Tuple[int, int]] = {
     "ui ux designer": (80000, 135000),
 }
 
-# Skill pools per role — drawn mostly from skills_taxonomy.py's canonical
-# names (kept consistent with resume-parsing elsewhere) plus a handful of
-# role-specific extras the taxonomy doesn't cover, so every tracked role has
-# a plausible, distinct set instead of the original fixture's 8-role subset.
+# Skill pools per role — drawn from skills_taxonomy.py's full 250+ skill
+# registry (kept consistent with resume-parsing elsewhere) so every tracked
+# role covers real breadth: not just the 8-10 most obvious skills, but the
+# tools, platforms, and practices an actual posting for that role would
+# plausibly mention. A single job still only samples a realistic handful
+# (see MIN_SKILLS_PER_JOB/MAX_SKILLS_PER_JOB below) — the large pool is what
+# gives the corpus its variety across thousands of postings, not any one job.
 _TAXONOMY = set(SKILLS_TAXONOMY)
 
 
 def _pool(*names: str) -> List[str]:
-    """Keeps only names that exist in the taxonomy, plus any not in it verbatim
-    (role-specific extras below aren't in skills_taxonomy.py by design)."""
+    """Keeps every name — some (like 'CSS'/'HTML') are taxonomy canonical
+    names, and this also accepts role-specific names outside the taxonomy
+    if ever needed."""
     return list(names)
 
 
 ROLE_SKILL_POOLS: Dict[str, List[str]] = {
     "software engineer": _pool(
-        "Python", "Java", "Go", "SQL", "Git", "Docker", "REST API", "Microservices",
-        "Agile", "AWS", "PostgreSQL", "Kubernetes", "CI/CD",
+        "Python", "Java", "Go", "C++", "SQL", "Git", "Docker", "REST API",
+        "Microservices", "Agile", "AWS", "PostgreSQL", "Kubernetes", "CI/CD",
+        "System Design", "OOP", "Design Patterns", "Code Review", "Linux",
+        "GraphQL", "Redis", "Jenkins", "TDD",
     ),
     "backend developer": _pool(
-        "Python", "Node.js", "SQL", "PostgreSQL", "Docker", "REST API", "GraphQL",
-        "Microservices", "Redis", "AWS", "Django", "FastAPI", "MongoDB",
+        "Python", "Node.js", "Java", "SQL", "PostgreSQL", "MySQL", "Docker",
+        "REST API", "GraphQL", "Microservices", "Redis", "AWS", "Django",
+        "FastAPI", "MongoDB", "gRPC", "RabbitMQ", "Kafka", "System Design",
+        "Nginx", "CI/CD",
     ),
     "frontend developer": _pool(
         "React", "JavaScript", "TypeScript", "CSS", "HTML", "Next.js", "Vue",
-        "Tailwind CSS", "GraphQL", "Git", "Angular",
+        "Svelte", "Tailwind CSS", "GraphQL", "Git", "Angular", "Redux",
+        "jQuery", "Webpack", "Vite", "Sass", "Bootstrap", "Material UI",
+        "Accessibility", "REST API",
     ),
     "full stack developer": _pool(
-        "React", "Node.js", "TypeScript", "SQL", "Docker", "JavaScript", "PostgreSQL",
-        "Next.js", "REST API", "AWS", "Git",
+        "React", "Node.js", "TypeScript", "SQL", "Docker", "JavaScript",
+        "PostgreSQL", "Next.js", "REST API", "AWS", "Git", "GraphQL",
+        "MongoDB", "Tailwind CSS", "CI/CD", "Redux", "System Design",
     ),
     "data scientist": _pool(
-        "Python", "SQL", "Pandas", "scikit-learn", "Machine Learning", "TensorFlow",
-        "PyTorch", "NumPy", "Data Analysis", "Deep Learning", "R", "NLP",
+        "Python", "SQL", "Pandas", "scikit-learn", "Machine Learning",
+        "TensorFlow", "PyTorch", "NumPy", "Data Analysis", "Deep Learning",
+        "R", "NLP", "Statistics", "Feature Engineering", "XGBoost",
+        "LightGBM", "Keras", "Data Visualization", "MLflow", "A/B Testing",
     ),
     "data analyst": _pool(
-        "SQL", "Python", "Pandas", "Data Visualization", "Excel", "Data Analysis",
-        "R", "PostgreSQL", "Tableau", "Power BI",
+        "SQL", "Python", "Pandas", "Data Visualization", "Excel",
+        "Data Analysis", "R", "PostgreSQL", "Tableau", "Power BI", "Looker",
+        "Qlik", "Alteryx", "Statistics", "BigQuery", "A/B Testing",
     ),
     "data engineer": _pool(
-        "Python", "SQL", "Docker", "Kubernetes", "AWS", "PostgreSQL", "Airflow",
-        "Spark", "Kafka", "GCP", "Data Analysis",
+        "Python", "SQL", "Docker", "Kubernetes", "AWS", "PostgreSQL",
+        "Airflow", "Spark", "Kafka", "GCP", "Data Analysis", "Hadoop",
+        "Hive", "dbt", "Snowflake", "BigQuery", "Redshift", "Databricks",
+        "ETL", "Data Warehousing", "Data Governance",
     ),
     "machine learning engineer": _pool(
-        "Python", "TensorFlow", "PyTorch", "Docker", "Machine Learning", "AWS",
-        "Deep Learning", "Kubernetes", "scikit-learn", "NumPy", "MLOps",
+        "Python", "TensorFlow", "PyTorch", "Docker", "Machine Learning",
+        "AWS", "Deep Learning", "Kubernetes", "scikit-learn", "NumPy",
+        "MLOps", "Keras", "XGBoost", "MLflow", "Ray", "Feature Engineering",
+        "Spark", "LangChain",
     ),
     "ai engineer": _pool(
-        "Python", "PyTorch", "TensorFlow", "NLP", "Machine Learning", "Deep Learning",
-        "LLMs", "Prompt Engineering", "AWS", "Docker", "Vector Databases",
+        "Python", "PyTorch", "TensorFlow", "NLP", "Machine Learning",
+        "Deep Learning", "LLMs", "Prompt Engineering", "AWS", "Docker",
+        "Vector Databases", "LangChain", "Hugging Face Transformers",
+        "MLOps", "OpenCV", "Kubernetes",
     ),
     "devops engineer": _pool(
-        "Docker", "Kubernetes", "AWS", "Terraform", "CI/CD", "Linux", "Jenkins",
-        "Azure", "GCP", "Ansible", "Git",
+        "Docker", "Kubernetes", "AWS", "Terraform", "CI/CD", "Linux",
+        "Jenkins", "Azure", "GCP", "Ansible", "Git", "Helm", "ArgoCD",
+        "GitHub Actions", "GitLab CI", "Chef", "Puppet", "Prometheus",
+        "Grafana", "Datadog", "Nginx", "Bash",
     ),
     "cloud engineer": _pool(
         "AWS", "Azure", "GCP", "Terraform", "Kubernetes", "Docker", "CI/CD",
-        "Linux", "Cloud Security",
+        "Linux", "Cloud Security", "Serverless", "AWS Lambda", "Cloudflare",
+        "Load Balancing", "DigitalOcean", "Pulumi", "Helm",
     ),
     "site reliability engineer": _pool(
-        "Kubernetes", "Docker", "AWS", "Terraform", "Linux", "CI/CD", "Prometheus",
-        "Grafana", "Incident Response", "Python",
+        "Kubernetes", "Docker", "AWS", "Terraform", "Linux", "CI/CD",
+        "Prometheus", "Grafana", "Incident Response", "Python", "Datadog",
+        "New Relic", "Splunk", "ELK Stack", "Nagios", "Load Balancing",
+        "Bash",
     ),
     "mobile developer": _pool(
-        "Swift", "Kotlin", "React Native", "Flutter", "JavaScript", "Git", "REST API", "Agile",
+        "Swift", "Kotlin", "React Native", "Flutter", "JavaScript", "Git",
+        "REST API", "Agile", "Dart", "Firebase", "App Store Deployment",
+        "Google Play Console", "API Testing",
     ),
     "android developer": _pool(
-        "Kotlin", "Java", "Android SDK", "Git", "REST API", "Jetpack Compose", "Agile",
+        "Kotlin", "Java", "Android SDK", "Git", "REST API",
+        "Jetpack Compose", "Agile", "Firebase", "Espresso",
+        "Google Play Console", "Performance Testing",
     ),
     "ios developer": _pool(
         "Swift", "SwiftUI", "Xcode", "Git", "REST API", "Agile",
+        "Objective-C", "XCTest", "App Store Deployment", "Firebase",
     ),
     "qa engineer": _pool(
-        "Selenium", "Manual Testing", "Test Planning", "Agile", "SQL", "Git", "REST API",
+        "Selenium", "Manual Testing", "Test Planning", "Agile", "SQL",
+        "Git", "REST API", "API Testing", "Postman", "JUnit", "Playwright",
+        "Performance Testing", "Load Testing",
     ),
     "test automation engineer": _pool(
-        "Selenium", "Cypress", "Python", "CI/CD", "Test Planning", "Git", "Java",
+        "Selenium", "Cypress", "Python", "CI/CD", "Test Planning", "Git",
+        "Java", "Playwright", "Appium", "API Testing", "JUnit", "BDD",
+        "TDD",
     ),
     "cybersecurity analyst": _pool(
         "Cloud Security", "SIEM", "Penetration Testing", "Linux", "Python",
-        "Incident Response", "SOC 2", "Network Security",
+        "Incident Response", "SOC 2", "Network Security", "OAuth", "JWT",
+        "SSO", "Identity and Access Management", "Vulnerability Assessment",
+        "Threat Modeling", "Firewall Configuration", "Zero Trust Architecture",
+        "Encryption", "GDPR Compliance", "ISO 27001", "Malware Analysis",
+        "DevSecOps",
     ),
     "database administrator": _pool(
-        "PostgreSQL", "MySQL", "SQL", "MongoDB", "Redis", "Linux", "Backup & Recovery",
-        "Database Tuning",
+        "PostgreSQL", "MySQL", "SQL", "MongoDB", "Redis", "Linux",
+        "Backup & Recovery", "Database Tuning", "Oracle Database",
+        "SQL Server", "MariaDB", "Database Replication", "Query Optimization",
+        "Data Warehousing", "ETL",
     ),
     "product manager": _pool(
         "Agile", "Scrum", "Product Strategy", "Roadmapping", "SQL", "Jira",
-        "Stakeholder Management", "A/B Testing",
+        "Stakeholder Management", "A/B Testing", "Product Analytics",
+        "User Stories", "OKRs", "Competitive Analysis", "Confluence",
+        "Notion", "Data Analysis",
     ),
     "ui ux designer": _pool(
-        "Figma", "Wireframing", "User Research", "Prototyping", "Design Systems",
-        "Sketch", "Usability Testing",
+        "Figma", "Wireframing", "User Research", "Prototyping",
+        "Design Systems", "Sketch", "Usability Testing", "Adobe XD",
+        "Photoshop", "Illustrator", "InVision", "Interaction Design",
+        "Information Architecture", "Accessibility", "Design Thinking",
+        "User Personas", "Journey Mapping", "Visual Design", "Motion Design",
+        "Typography",
     ),
 }
 
@@ -207,6 +271,10 @@ if _missing or _extra:
     raise RuntimeError(
         f"ROLE_SKILL_POOLS is out of sync with TRACKED_ROLES — missing={_missing} extra={_extra}"
     )
+
+
+MIN_SKILLS_PER_JOB = 4
+MAX_SKILLS_PER_JOB = 12  # keeps individual postings realistic even though pools now run 13-22 skills deep
 
 
 def _pick_title(role: str, rng: random.Random) -> str:
@@ -294,7 +362,9 @@ def seed_demo_database(reset: bool = False) -> int:
                 )
                 job_objects.append(job)
 
-                sample_size = rng.randint(min(3, len(pool)), len(pool))
+                sample_size = rng.randint(
+                    min(MIN_SKILLS_PER_JOB, len(pool)), min(MAX_SKILLS_PER_JOB, len(pool))
+                )
                 chosen = rng.sample(pool, k=sample_size)
                 job_skill_links.append((job, chosen))
 
