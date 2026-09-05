@@ -1299,3 +1299,207 @@ def test_health_reports_database_and_redis_fields():
     assert response.status_code == 200
     body = response.json()
     assert set(body.keys()) == {"status", "database", "redis"}
+
+
+# --- Applications (job tracker) ---------------------------------------
+
+
+def test_create_application_requires_auth():
+    response = client.post("/applications", json={"company_name": "Acme", "job_title": "Engineer"})
+    assert response.status_code == 401
+
+
+def test_create_application_defaults_to_saved_status(auth_headers):
+    response = client.post(
+        "/applications",
+        json={"company_name": "Globex", "job_title": "Backend Developer"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "saved"
+    assert body["company_name"] == "Globex"
+    assert body["job_title"] == "Backend Developer"
+    assert body["job_id"] is None
+
+
+def test_create_application_rejects_nonexistent_job_id(auth_headers):
+    response = client.post(
+        "/applications",
+        json={"company_name": "Globex", "job_title": "Backend Developer", "job_id": 999999999},
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+
+def test_list_applications_filters_by_status(auth_headers):
+    client.post(
+        "/applications",
+        json={"company_name": "Filter Co", "job_title": "Role A", "status": "interviewing"},
+        headers=auth_headers,
+    )
+    response = client.get("/applications?status=interviewing", headers=auth_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] >= 1
+    assert all(r["status"] == "interviewing" for r in body["results"])
+
+
+def test_update_application_changes_status_and_notes(auth_headers):
+    created = client.post(
+        "/applications",
+        json={"company_name": "Update Co", "job_title": "Role B"},
+        headers=auth_headers,
+    ).json()
+
+    response = client.patch(
+        f"/applications/{created['id']}",
+        json={"status": "applied", "notes": "Submitted via referral"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "applied"
+    assert body["notes"] == "Submitted via referral"
+
+
+def test_update_application_not_found(auth_headers):
+    response = client.patch("/applications/999999999", json={"status": "applied"}, headers=auth_headers)
+    assert response.status_code == 404
+
+
+def test_applications_board_groups_by_status(auth_headers):
+    client.post(
+        "/applications",
+        json={"company_name": "Board Co", "job_title": "Role C", "status": "offer"},
+        headers=auth_headers,
+    )
+    response = client.get("/applications/board", headers=auth_headers)
+    assert response.status_code == 200
+    board = response.json()["board"]
+    assert set(board.keys()) == {"saved", "applied", "interviewing", "offer", "rejected", "withdrawn"}
+    assert any(a["company_name"] == "Board Co" for a in board["offer"])
+
+
+def test_delete_application_removes_it(auth_headers):
+    created = client.post(
+        "/applications",
+        json={"company_name": "Delete Co", "job_title": "Role D"},
+        headers=auth_headers,
+    ).json()
+
+    delete_response = client.delete(f"/applications/{created['id']}", headers=auth_headers)
+    assert delete_response.status_code == 200
+    assert delete_response.json()["deleted"] is True
+
+    second_delete = client.delete(f"/applications/{created['id']}", headers=auth_headers)
+    assert second_delete.status_code == 404
+
+
+def test_users_cannot_modify_each_others_applications():
+    from api import limiter
+
+    limiter.reset()
+    owner_email = f"app-owner-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    owner_headers = {
+        "Authorization": f"Bearer {client.post('/auth/signup', json={'email': owner_email, 'password': 'testpassword123'}).json()['access_token']}"
+    }
+    created = client.post(
+        "/applications",
+        json={"company_name": "Private Co", "job_title": "Role E"},
+        headers=owner_headers,
+    ).json()
+
+    intruder_email = f"app-intruder-{uuid.uuid4().hex[:12]}@nextskill.dev"
+    intruder_headers = {
+        "Authorization": f"Bearer {client.post('/auth/signup', json={'email': intruder_email, 'password': 'testpassword123'}).json()['access_token']}"
+    }
+    response = client.patch(
+        f"/applications/{created['id']}", json={"status": "applied"}, headers=intruder_headers
+    )
+    assert response.status_code == 404
+
+
+# --- Certifications ------------------------------------------------------
+
+
+def test_add_certification_requires_auth():
+    response = client.post("/auth/me/certifications", json={"name": "AWS Certified Solutions Architect"})
+    assert response.status_code == 401
+
+
+def test_add_and_list_certifications(auth_headers):
+    create_response = client.post(
+        "/auth/me/certifications",
+        json={
+            "name": "AWS Certified Solutions Architect",
+            "issuing_organization": "Amazon Web Services",
+            "issue_date": "2025-01-15",
+        },
+        headers=auth_headers,
+    )
+    assert create_response.status_code == 200, create_response.text
+    body = create_response.json()
+    assert body["name"] == "AWS Certified Solutions Architect"
+    assert body["issuing_organization"] == "Amazon Web Services"
+
+    list_response = client.get("/auth/me/certifications", headers=auth_headers)
+    assert list_response.status_code == 200
+    names = [c["name"] for c in list_response.json()["results"]]
+    assert "AWS Certified Solutions Architect" in names
+
+
+def test_delete_certification_removes_it(auth_headers):
+    created = client.post(
+        "/auth/me/certifications",
+        json={"name": "Certified Kubernetes Administrator"},
+        headers=auth_headers,
+    ).json()
+
+    delete_response = client.delete(f"/auth/me/certifications/{created['id']}", headers=auth_headers)
+    assert delete_response.status_code == 200
+    assert delete_response.json()["deleted"] is True
+
+    second_delete = client.delete(f"/auth/me/certifications/{created['id']}", headers=auth_headers)
+    assert second_delete.status_code == 404
+
+
+# --- Learning resources ---------------------------------------------------
+
+
+def test_skill_learning_resources_for_known_skill():
+    response = client.get("/skills/Python/resources")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["skill"] == "Python"
+    assert len(body["resources"]) >= 3
+    assert all(r["url"].startswith("https://") for r in body["resources"])
+
+
+def test_skill_learning_resources_for_unknown_skill_still_returns_search_links():
+    response = client.get("/skills/SomeSkillNotInTheDatabase/resources")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["skill"] == "SomeSkillNotInTheDatabase"
+    assert len(body["resources"]) >= 3
+
+
+# --- Career plan ------------------------------------------------------
+
+
+def test_career_plan_requires_auth():
+    response = client.get("/career-plan?target_role=software engineer")
+    assert response.status_code == 401
+
+
+def test_career_plan_returns_gaps_with_resources_and_adjacent_roles(auth_headers):
+    response = client.get("/career-plan?target_role=software engineer", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["role_resolution"]["resolved"] == "software engineer"
+    assert "skill_gaps" in body
+    assert "adjacent_roles" in body
+    if body["skill_gaps"]:
+        first_gap = body["skill_gaps"][0]
+        assert "resources" in first_gap
+        assert len(first_gap["resources"]) >= 1

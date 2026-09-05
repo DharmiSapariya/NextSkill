@@ -28,9 +28,9 @@ logger = logging.getLogger("nextskill.api")
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
-from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, SavedJob, db_session
+from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, SavedJob, Application, Certification, db_session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
 from auth import hash_password, verify_password, create_access_token, get_current_user, get_current_admin_user
 from resume_parser import parse_resume
@@ -42,6 +42,7 @@ from role_matcher import resolve_role
 from digest import compute_digest_for_user
 from cache import cache_get, cache_set, redis_healthy
 from seniority import infer_seniority, as_postgres_regex, SENIORITY_PATTERNS
+from learning_resources import resources_for_skill
 
 app = FastAPI(
     title="NextSkill API",
@@ -123,6 +124,64 @@ class AccountDeleteRequest(BaseModel):
     # same proof-of-identity a password change does — a valid bearer token
     # alone isn't enough for a destructive, unrecoverable action.
     password: str
+
+
+APPLICATION_STATUSES = ["saved", "applied", "interviewing", "offer", "rejected", "withdrawn"]
+ApplicationStatus = Literal["saved", "applied", "interviewing", "offer", "rejected", "withdrawn"]
+
+
+class ApplicationCreateRequest(BaseModel):
+    company_name: str = Field(min_length=1, max_length=255)
+    job_title: str = Field(min_length=1, max_length=255)
+    # Set only when this application is actually for one of NextSkill's own
+    # postings — otherwise the user is tracking something from elsewhere.
+    job_id: Optional[int] = None
+    status: ApplicationStatus = "saved"
+    applied_date: Optional[date] = None
+    next_action_date: Optional[date] = None
+    notes: Optional[str] = None
+
+
+class ApplicationUpdateRequest(BaseModel):
+    status: Optional[ApplicationStatus] = None
+    applied_date: Optional[date] = None
+    next_action_date: Optional[date] = None
+    notes: Optional[str] = None
+
+
+class CertificationCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    issuing_organization: Optional[str] = Field(default=None, max_length=255)
+    issue_date: Optional[date] = None
+    expiry_date: Optional[date] = None
+    credential_url: Optional[str] = Field(default=None, max_length=500)
+
+
+def _serialize_application(a: Application) -> dict:
+    return {
+        "id": a.id,
+        "job_id": a.job_id,
+        "company_name": a.company_name,
+        "job_title": a.job_title,
+        "status": a.status,
+        "applied_date": a.applied_date.isoformat() if a.applied_date else None,
+        "next_action_date": a.next_action_date.isoformat() if a.next_action_date else None,
+        "notes": a.notes,
+        "created_at": a.created_at.isoformat(),
+        "updated_at": a.updated_at.isoformat(),
+    }
+
+
+def _serialize_certification(c: Certification) -> dict:
+    return {
+        "id": c.id,
+        "name": c.name,
+        "issuing_organization": c.issuing_organization,
+        "issue_date": c.issue_date.isoformat() if c.issue_date else None,
+        "expiry_date": c.expiry_date.isoformat() if c.expiry_date else None,
+        "credential_url": c.credential_url,
+        "created_at": c.created_at.isoformat(),
+    }
 
 
 @app.get("/health")
@@ -671,6 +730,171 @@ def job_match(job_id: int, current_user: User = Depends(get_current_user)):
     }
 
 
+@app.post("/applications")
+def create_application(body: ApplicationCreateRequest, current_user: User = Depends(get_current_user)):
+    """Tracks a job application through its pipeline — the single most
+    common feature across dedicated job-search trackers (Huntr, Teal,
+    Careerflow). company_name/job_title are freeform so a user can log an
+    application from any job board; job_id is only set when it actually
+    points at one of NextSkill's own postings."""
+    if body.job_id is not None:
+        job = db_session.query(Job).filter_by(id=body.job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail=f"No job found with id {body.job_id}")
+
+    application = Application(
+        user_id=current_user.id,
+        job_id=body.job_id,
+        company_name=body.company_name.strip(),
+        job_title=body.job_title.strip(),
+        status=body.status,
+        applied_date=body.applied_date,
+        next_action_date=body.next_action_date,
+        notes=body.notes,
+    )
+    db_session.add(application)
+    db_session.commit()
+    return _serialize_application(application)
+
+
+@app.get("/applications")
+def list_applications(
+    status: Optional[ApplicationStatus] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(get_current_user),
+):
+    query = db_session.query(Application).filter_by(user_id=current_user.id)
+    if status:
+        query = query.filter_by(status=status)
+    total = query.count()
+    applications = query.order_by(Application.updated_at.desc()).offset(offset).limit(limit).all()
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "results": [_serialize_application(a) for a in applications],
+    }
+
+
+@app.get("/applications/board")
+def applications_board(current_user: User = Depends(get_current_user)):
+    """Kanban-shaped view of every tracked application grouped by status —
+    the exact shape a board UI like Huntr/Teal's renders directly, without
+    the frontend having to bucket a flat list itself."""
+    applications = (
+        db_session.query(Application)
+        .filter_by(user_id=current_user.id)
+        .order_by(Application.updated_at.desc())
+        .all()
+    )
+    board: dict = {status: [] for status in APPLICATION_STATUSES}
+    for a in applications:
+        board[a.status].append(_serialize_application(a))
+    return {"board": board}
+
+
+@app.patch("/applications/{application_id}")
+def update_application(
+    application_id: int,
+    body: ApplicationUpdateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    application = db_session.query(Application).filter_by(id=application_id, user_id=current_user.id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail=f"No application found with id {application_id}")
+
+    if body.status is not None:
+        application.status = body.status
+    if body.applied_date is not None:
+        application.applied_date = body.applied_date
+    if body.next_action_date is not None:
+        application.next_action_date = body.next_action_date
+    if body.notes is not None:
+        application.notes = body.notes
+    application.updated_at = datetime.now(timezone.utc)
+
+    db_session.commit()
+    return _serialize_application(application)
+
+
+@app.delete("/applications/{application_id}")
+def delete_application(application_id: int, current_user: User = Depends(get_current_user)):
+    deleted = db_session.query(Application).filter_by(id=application_id, user_id=current_user.id).delete()
+    db_session.commit()
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"No application found with id {application_id}")
+    return {"application_id": application_id, "deleted": True}
+
+
+@app.post("/auth/me/certifications")
+def add_certification(body: CertificationCreateRequest, current_user: User = Depends(get_current_user)):
+    cert = Certification(
+        user_id=current_user.id,
+        name=body.name.strip(),
+        issuing_organization=body.issuing_organization,
+        issue_date=body.issue_date,
+        expiry_date=body.expiry_date,
+        credential_url=body.credential_url,
+    )
+    db_session.add(cert)
+    db_session.commit()
+    return _serialize_certification(cert)
+
+
+@app.get("/auth/me/certifications")
+def list_certifications(current_user: User = Depends(get_current_user)):
+    certs = (
+        db_session.query(Certification)
+        .filter_by(user_id=current_user.id)
+        .order_by(Certification.issue_date.desc().nullslast())
+        .all()
+    )
+    return {"results": [_serialize_certification(c) for c in certs]}
+
+
+@app.delete("/auth/me/certifications/{certification_id}")
+def delete_certification(certification_id: int, current_user: User = Depends(get_current_user)):
+    deleted = (
+        db_session.query(Certification)
+        .filter_by(id=certification_id, user_id=current_user.id)
+        .delete()
+    )
+    db_session.commit()
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"No certification found with id {certification_id}")
+    return {"certification_id": certification_id, "deleted": True}
+
+
+@app.get("/career-plan")
+@limiter.limit("10/minute")
+def career_plan(request: Request, target_role: str = Query(...), current_user: User = Depends(get_current_user)):
+    """A single call answering the three questions a career plan needs:
+    what's the skill gap for this role, where can you actually learn each
+    gap skill, and what adjacent tracked roles are worth considering —
+    composed from /recommend, /skills/{skill}/resources, and
+    /roles/{role}/nearest rather than duplicating their logic."""
+    role_resolution = resolve_role(target_role)
+    resolved_role = role_resolution["resolved"]
+
+    gap_result = recommend_skills_data(current_user.skills or [], resolved_role, top_n=10)
+    gaps_with_resources = [
+        {**gap, "resources": resources_for_skill(gap["skill"])}
+        for gap in gap_result["recommendations"]
+    ]
+
+    adjacent_roles = nearest_roles(resolved_role, limit=5) if resolved_role in TRACKED_ROLES else []
+
+    return {
+        "target_role": target_role,
+        "role_resolution": role_resolution,
+        "your_skills": current_user.skills or [],
+        "total_market_jobs": gap_result["total_market_jobs"],
+        "skill_gaps": gaps_with_resources,
+        "adjacent_roles": adjacent_roles,
+    }
+
+
 @app.get("/companies/top")
 def top_companies(limit: int = Query(10, ge=1, le=50)):
     results = (
@@ -1165,6 +1389,22 @@ def related_skills(skill_name: str, limit: int = Query(10, ge=1, le=30)):
     }
     cache_set(cache_key, result, ttl_seconds=3600)
     return result
+
+
+@app.get("/skills/{skill_name}/resources")
+def skill_learning_resources(skill_name: str):
+    """Where to actually learn a gap skill — the natural next question
+    after /recommend tells you what's missing. Every one of the 250+
+    taxonomy skills resolves to something concrete: a hand-verified
+    canonical homepage for common ones, plus live search links on major
+    learning platforms for the rest (never a specific course URL we can't
+    vouch for existing)."""
+    skill = db_session.query(Skill).filter(func.lower(Skill.name) == skill_name.strip().lower()).first()
+    canonical_name = skill.name if skill else skill_name.strip()
+    return {
+        "skill": canonical_name,
+        "resources": resources_for_skill(canonical_name),
+    }
 
 
 @app.get("/skills/co-occurrence-graph")

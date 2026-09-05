@@ -236,6 +236,7 @@ NextSkill/
 | GET | `/jobs/{id}` | Single posting |
 | GET | `/companies`, `/companies/top` | Directory + leaderboard |
 | GET | `/skills`, `/skills/{name}/related` | Skill browse + co-occurrence |
+| GET | `/skills/{name}/resources` | Where to learn a skill (docs + course search links) |
 | GET | `/skills/co-occurrence-graph` | Force-directed skill graph |
 | GET | `/trends/{skill}` | Month-over-month demand |
 | GET | `/roles/transition-graph`, `/roles/{role}/nearest` | Role-similarity graph |
@@ -244,7 +245,7 @@ NextSkill/
 </details>
 
 <details>
-<summary><b>Auth-required endpoints</b> (18 routes — click to expand)</summary>
+<summary><b>Auth-required endpoints</b> (29 routes — click to expand)</summary>
 
 | Method | Path | Description |
 |---|---|---|
@@ -261,6 +262,9 @@ NextSkill/
 | POST | `/match-score`, `GET /jobs/{id}/match` | Match % (role-wide / one posting) |
 | POST | `/predict-salary` | Salary range prediction |
 | POST/DELETE | `/jobs/{id}/save` | Bookmark toggle |
+| POST/GET/PATCH/DELETE | `/applications`, `/applications/{id}`, `/applications/board` | Job application tracker (Kanban-style: saved/applied/interviewing/offer/rejected/withdrawn) |
+| POST/GET/DELETE | `/auth/me/certifications`, `/auth/me/certifications/{id}` | Certifications on your profile |
+| GET | `/career-plan` | Skill gap + learning resources + adjacent roles, in one call |
 
 </details>
 

@@ -129,6 +129,12 @@ class User(Base):
     saved_jobs = relationship(
         "SavedJob", back_populates="user", cascade="all, delete-orphan"
     )
+    applications = relationship(
+        "Application", back_populates="user", cascade="all, delete-orphan"
+    )
+    certifications = relationship(
+        "Certification", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class RecommendationHistory(Base):
@@ -197,6 +203,67 @@ class SavedJob(Base):
     # Relationships
     user = relationship("User", back_populates="saved_jobs")
     job = relationship("Job", back_populates="saved_by_users")
+
+
+class Application(Base):
+    """A job application the user is tracking through its pipeline — a
+    Kanban-style tracker (saved/applied/interviewing/offer/rejected/
+    withdrawn), the single most-requested feature across job-search tools
+    like Huntr, Teal, and Careerflow. job_id is optional and only set when
+    the application is for one of NextSkill's own postings; company_name/
+    job_title are freeform so a user can track applications from any job
+    board, not just ones ingested here."""
+    __tablename__ = "applications"
+    __table_args__ = (
+        Index("ix_applications_user_id_status", "user_id", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id = Column(
+        Integer, ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    company_name = Column(String(255), nullable=False)
+    job_title = Column(String(255), nullable=False)
+    status = Column(String(20), nullable=False, server_default="saved")
+    applied_date = Column(Date, nullable=True)
+    next_action_date = Column(Date, nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="applications")
+    job = relationship("Job")
+
+
+class Certification(Base):
+    """A certification/credential the user holds — shown on their profile
+    and (like everything else here) grounded in what they actually earned,
+    not inferred from a resume."""
+    __tablename__ = "certifications"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name = Column(String(255), nullable=False)
+    issuing_organization = Column(String(255), nullable=True)
+    issue_date = Column(Date, nullable=True)
+    expiry_date = Column(Date, nullable=True)
+    credential_url = Column(String(500), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="certifications")
 
 
 # Database Connection Factory
