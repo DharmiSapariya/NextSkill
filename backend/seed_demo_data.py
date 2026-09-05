@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nextskill.seed.demo")
 
 RNG_SEED = 20260101
-POSTINGS_PER_ROLE = (2600, 4200)  # random range, so roles don't all look identical
+POSTINGS_PER_ROLE = (5200, 8400)  # random range, so roles don't all look identical
 POSTING_WINDOW_DAYS = 365  # a full year — several /trends 30-day comparison windows with room to spare
 
 COMPANIES: List[str] = [

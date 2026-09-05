@@ -48,6 +48,18 @@ def _get_role_skill_vectors(db: Session) -> Tuple[Dict[str, Dict[str, float]], D
     for role in TRACKED_ROLES:
         role_posting_counts[role] = len(role_job_map[role])
 
+    # Reverse index: job_id -> roles it belongs to (usually one, but a
+    # posting can legitimately match more than one tracked-role substring,
+    # e.g. a title mentioning two role names). Built once, up front, so the
+    # skill-frequency pass below does an O(1) dict lookup per row instead of
+    # testing every row against all TRACKED_ROLES sets — at real dataset
+    # sizes (six figures of job-skill rows) that per-row role scan was the
+    # entire cost of this function.
+    job_role_membership: Dict[int, List[str]] = {}
+    for role, job_ids in role_job_map.items():
+        for job_id in job_ids:
+            job_role_membership.setdefault(job_id, []).append(role)
+
     # 2. Database SQL aggregation: Skill frequencies grouped by role
     # Query: Skill name, job_id for all relevant jobs
     raw_skill_data = (
@@ -64,12 +76,9 @@ def _get_role_skill_vectors(db: Session) -> Tuple[Dict[str, Dict[str, float]], D
 
     for job_id, skill_name in raw_skill_data:
         skill_lower = skill_name.lower()
-        for role, job_ids in role_job_map.items():
-            if job_id in job_ids:
-                role_skill_freq[role][skill_lower] = role_skill_freq[role].get(skill_lower, 0) + 1
-                if skill_lower not in skill_document_freq:
-                    skill_document_freq[skill_lower] = set()
-                skill_document_freq[skill_lower].add(role)
+        for role in job_role_membership.get(job_id, ()):
+            role_skill_freq[role][skill_lower] = role_skill_freq[role].get(skill_lower, 0) + 1
+            skill_document_freq.setdefault(skill_lower, set()).add(role)
 
     # 3. Compute TF-IDF weights for each skill per role
     total_roles = len(TRACKED_ROLES)
