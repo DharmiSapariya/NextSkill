@@ -10,29 +10,11 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 **2 job sources · 30+ endpoints · 156 tests · Every number backed by real postings**
-
-
----
-
-## 📖 Table of Contents
-
-- [Why NextSkill?](#-why-nextskill)
-- [Screenshots](#-screenshots)
-- [Feature Tour](#-feature-tour)
-- [Architecture](#️-architecture)
-- [How It Works — Core Workflows](#-how-it-works--core-workflows)
-- [Development Journey](#-development-journey)
-- [Tech Stack](#️-tech-stack)
-- [Getting Started](#-getting-started)
-- [Project Structure](#-project-structure)
-- [API Reference](#-api-reference)
-- [Roadmap](#-roadmap)
-- [Known Limitations](#️-known-limitations)
-- [License](#-license)
+Built solo by [Dharmi Sapariya](https://github.com/DharmiSapariya)
 
 ---
 
-## 🚀 Why NextSkill?
+## 🚀 Why this exists
 
 Thousands of tech job postings go up every day — each one a signal about what employers actually value. Nobody accessible to a regular person turns that signal into a straight answer to: **what should I learn next, and is it worth it?**
 
@@ -47,10 +29,205 @@ Thousands of tech job postings go up every day — each one a signal about what 
 
 ---
 
+## 📸 See it
+
+<!--
+  Drop your own screenshots into `design-assets/screenshots/` — GitHub
+  renders them inline the moment the files exist at these paths.
+  Suggested shots: dashboard overview, skill-gap recommendation + evidence
+  drawer, salary prediction card, role-transition graph, application tracker.
+-->
+
+<table>
+  <tr>
+    <td width="50%"><img src="design-assets/screenshots/dashboard-overview.png" alt="Dashboard overview" /><p align="center"><sub>Streamlit operator dashboard</sub></p></td>
+    <td width="50%"><img src="design-assets/screenshots/skill-gap-evidence.png" alt="Skill-gap recommendation with evidence" /><p align="center"><sub>Skill-gap recommendation, click-through evidence</sub></p></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="design-assets/screenshots/salary-prediction.png" alt="Salary prediction" /><p align="center"><sub>Salary range prediction</sub></p></td>
+    <td width="50%"><img src="design-assets/screenshots/role-graph.png" alt="Role transition graph" /><p align="center"><sub>Role-transition & skill co-occurrence graph</sub></p></td>
+  </tr>
+</table>
+
+> Run the dashboard locally, grab a few screenshots, drop them in `design-assets/screenshots/` with the filenames above — this section lights up automatically, no markdown changes needed.
 
 ---
 
-## 🧩 Feature Tour
+## 🗺️ The system, end to end
+
+Everything starts with two job boards and ends with a dashboard someone can actually act on. This is the whole shape of it before we zoom into any one piece:
+
+```mermaid
+flowchart LR
+    subgraph Sources["🌐 Job Sources"]
+        A[Adzuna API<br/>keyed, primary]
+        B[RemoteOK API<br/>keyless, secondary]
+    end
+
+    subgraph Pipeline["⚙️ Ingestion Pipeline"]
+        P[pipeline.py<br/>orchestrator]
+        X[Skill Extraction<br/>taxonomy regex + spaCy/skillNer]
+    end
+
+    subgraph Store["🗄️ Data Layer"]
+        DB[(PostgreSQL)]
+        R[(Redis<br/>fail-open cache)]
+    end
+
+    subgraph Serve["🖥️ Serving"]
+        API[FastAPI Backend]
+        S[APScheduler<br/>cron + healthcheck]
+        DASH[Streamlit Dashboard]
+    end
+
+    A & B --> P --> DB
+    DB --> X --> DB
+    API <-.-> R
+    DB --> API --> DASH
+    S --> P
+```
+
+Two design calls worth knowing about, because they shape a lot of the rest:
+
+- **No Adzuna key configured?** The pipeline reports itself `skipped` immediately instead of quietly ingesting from RemoteOK alone and pretending that's the full picture.
+- **No new postings this run?** The salary model doesn't waste a retrain on data it's already seen.
+
+---
+
+## 🔄 Flow 1 — From cron trigger to a row in Postgres
+
+This is what actually happens every time the scheduler fires.
+
+```mermaid
+flowchart TD
+    Start(["Scheduled cron trigger"]) --> CheckKey{"Adzuna key configured?"}
+    CheckKey -- No --> SkipAdzuna["Skip Adzuna, log 'skipped'"]
+    CheckKey -- Yes --> FetchAdzuna["Fetch Adzuna postings"]
+    Start --> FetchRemoteOK["Fetch RemoteOK postings"]
+    FetchAdzuna --> Dedup["Deduplicate & normalize"]
+    FetchRemoteOK --> Dedup
+    SkipAdzuna --> Dedup
+    Dedup --> Extract["Extract skills:<br/>taxonomy/regex path<br/>(+ optional spaCy/skillNer)"]
+    Extract --> Store[("Write to PostgreSQL")]
+    Store --> NewCheck{"New postings this run?"}
+    NewCheck -- Yes --> Retrain["Retrain salary model,<br/>hot-reload into API"]
+    NewCheck -- No --> SkipRetrain["Skip retrain"]
+    Retrain --> Health["Update healthcheck status"]
+    SkipRetrain --> Health
+```
+
+It runs isolated in its own subprocess via APScheduler, so a bad ingestion run can't take the live API down with it — worst case, the healthcheck flips and the next scheduled run gets another shot.
+
+---
+
+## 🔄 Flow 2 — Resolving "React Developer" to an actual tracked role
+
+Before any recommendation logic runs, a free-text role has to become one of the roles the system actually tracks. Three tiers, cheapest first:
+
+```mermaid
+flowchart LR
+    In["Incoming role string<br/>e.g. 'Growth Hacker'"] --> T1{"Exact match on<br/>tracked roles?"}
+    T1 -- Yes --> Done1["✅ Resolved — instant"]
+    T1 -- No --> T2{"Match in curated<br/>alias dictionary?"}
+    T2 -- Yes --> Done2["✅ Resolved — instant"]
+    T2 -- No --> T3["sentence-transformers<br/>semantic embedding"]
+    T3 --> Sim{"Cosine similarity<br/>≥ 0.60?"}
+    Sim -- Yes --> Done3["✅ Resolved — closest match"]
+    Sim -- No --> Fail["⚠️ Falls back to<br/>plain string matching"]
+```
+
+The embedding model only gets called on that third tier — most requests never touch it, which keeps the common case fast and the uncommon case still functional even if the model can't be downloaded (no network access, for instance).
+
+---
+
+## 🔄 Flow 3 — What happens on `POST /recommend`
+
+The actual request a user's browser (or the dashboard) fires when they ask "what am I missing for this role?"
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant API as FastAPI
+    participant Auth as JWT Auth
+    participant Cache as Redis
+    participant DB as PostgreSQL
+    participant ML as Semantic Matcher
+
+    U->>API: POST /recommend (target role + known skills)
+    API->>Auth: validate JWT
+    Auth-->>API: OK
+    API->>ML: resolve role (Flow 2, above)
+    ML-->>API: matched role
+    API->>Cache: check cached postings for role
+    alt cache hit
+        Cache-->>API: cached postings
+    else cache miss (or Redis down)
+        API->>DB: query matching postings
+        DB-->>API: postings
+        API->>Cache: store (fail-open — never blocks the request)
+    end
+    API->>API: diff known skills vs. market-demanded skills
+    API-->>U: ranked skill gaps + evidence links back to postings
+```
+
+The "fail-open" part matters: if Redis is down, the request still succeeds — it just skips the cache and hits Postgres directly. A cache outage degrades latency, not correctness.
+
+`/recommend/evidence` replays the identical query but returns the actual postings behind a given number, instead of just the score — that's the "click into any number and see the evidence" promise from the top of this README.
+
+---
+
+## 🔄 Flow 4 — Salary prediction and the hot-reload trick
+
+```mermaid
+flowchart LR
+    A["POST /predict-salary<br/>(role, skills, seniority, location)"] --> B["Load currently-active model"]
+    B --> C{"Has ingestion<br/>added new postings<br/>since last load?"}
+    C -- Yes --> D["Reload latest trained model<br/>from Flow 1's retrain step"]
+    C -- No --> E["Use already-loaded model"]
+    D --> F["Predict"]
+    E --> F
+    F --> G["Return range + confidence"]
+```
+
+The model retrains inside the ingestion pipeline (Flow 1), and the API picks up the new version without a restart — "hot-reloaded" just means the API checks freshness on each request instead of only at boot.
+
+---
+
+## 🔄 Flow 5 — Why trend comparison is deliberately narrow
+
+```mermaid
+flowchart LR
+    A["GET /trends/{skill}"] --> B["Restrict to fixed<br/>8-role whitelist"]
+    B --> C["Compare two<br/>30-day windows"]
+    C --> D["Return % change in demand"]
+```
+
+Early on, trend comparisons ran against *all* tracked roles — and as search coverage expanded from 6 roles to 21, "demand" for a skill appeared to spike even when nothing in the actual market had changed. Restricting the comparison to a fixed role set removes that confound. It's honestly labeled as a comparison, not a forecast — real time-series forecasting (Prophet/ARIMA) is parked until there's enough months of consistent data for it to mean something.
+
+---
+
+## 🧭 How this got built
+
+Each phase closed a specific gap before the next one started:
+
+```mermaid
+flowchart TD
+    P1["1. Foundation<br/>auth · skill-gap recommender w/ evidence · trends · co-occurrence · CI"]
+    P2["2. Trust infra<br/>Alembic · scheduled ingestion + healthchecks · fail-open Redis · Sentry"]
+    P3["3. The differentiators<br/>resume parsing · salary prediction · role-transition graph"]
+    P4["4. Smarter matching<br/>semantic fallback · seniority segmentation · lifecycle labels"]
+    P5["5. Retention<br/>history/progress diff · shareable reports · digest"]
+    P6["6. Backend redesign<br/>two-source ingestion · structured taxonomy · hot-reload model · JSONB · whitelist trend fix"]
+    P7["7. Next up<br/>frontend rebuild · live deployment · admin UI · digest email"]
+
+    P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7
+```
+
+A couple of specific things happened along the way that shaped later decisions: adding JWT auth briefly broke three existing tests because they weren't sending credentials — fixed, and a dedicated test now asserts an unauthenticated `/recommend` returns `401`, so that regression can't quietly come back. Rate limiting (10 req/min via `slowapi`) went on the compute-heavy endpoints once it became clear the semantic matching and recommendation paths were the ones worth protecting.
+
+---
+
+## 🧩 Everything it does, grouped by what it's for
 
 <details open>
 <summary><strong>🧠 Intelligence</strong></summary>
@@ -88,168 +265,9 @@ Thousands of tech job postings go up every day — each one a signal about what 
 
 </details>
 
-### 🤖 How role matching actually works
-
-```
-"Data Scientist"  ──▶  exact match on tracked roles           ──▶  done, no AI needed
-"React Developer" ──▶  curated alias dictionary                ──▶  done, no AI needed
-"Growth Hacker"   ──▶  sentence-transformers semantic fallback  ──▶  cosine similarity ≥ 0.60
-```
-
-Only that third tier ever calls the embedding model — the first two are instant lookups.
-
 ---
 
-## 🏗️ Architecture
-
-```mermaid
-flowchart LR
-    subgraph Sources["🌐 Job Sources"]
-        A[Adzuna API<br/>keyed, primary]
-        B[RemoteOK API<br/>keyless, secondary]
-    end
-
-    subgraph Pipeline["⚙️ Ingestion Pipeline"]
-        P[pipeline.py<br/>orchestrator]
-        X[Skill Extraction<br/>taxonomy regex + spaCy/skillNer]
-    end
-
-    subgraph Store["🗄️ Data Layer"]
-        DB[(PostgreSQL)]
-        R[(Redis<br/>fail-open cache)]
-    end
-
-    subgraph Serve["🖥️ Serving"]
-        API[FastAPI Backend]
-        S[APScheduler<br/>cron + healthcheck]
-        DASH[Streamlit Dashboard]
-    end
-
-    A & B --> P --> DB
-    DB --> X --> DB
-    API <-.-> R
-    DB --> API --> DASH
-    S --> P
-```
-
-**No Adzuna key configured?** The pipeline reports itself `skipped` immediately instead of partially ingesting from RemoteOK alone. **No new postings this run?** The salary model doesn't waste a retrain.
-
----
-
-## 🔄 How It Works — Core Workflows
-
-Four workflows carry most of the weight in this project. Here's each one end to end.
-
-<details open>
-<summary><strong>1. Data ingestion → skill extraction</strong></summary>
-
-```mermaid
-flowchart TD
-    Start(["Scheduled cron trigger"]) --> CheckKey{"Adzuna key configured?"}
-    CheckKey -- No --> SkipAdzuna["Skip Adzuna, log 'skipped'"]
-    CheckKey -- Yes --> FetchAdzuna["Fetch Adzuna postings"]
-    Start --> FetchRemoteOK["Fetch RemoteOK postings"]
-    FetchAdzuna --> Dedup["Deduplicate & normalize"]
-    FetchRemoteOK --> Dedup
-    SkipAdzuna --> Dedup
-    Dedup --> Extract["Extract skills:<br/>taxonomy/regex path<br/>(+ optional spaCy/skillNer)"]
-    Extract --> Store[("Write to PostgreSQL")]
-    Store --> NewCheck{"New postings this run?"}
-    NewCheck -- Yes --> Retrain["Retrain salary model,<br/>hot-reload into API"]
-    NewCheck -- No --> SkipRetrain["Skip retrain"]
-    Retrain --> Health["Update healthcheck status"]
-    SkipRetrain --> Health
-```
-
-Runs on a schedule via APScheduler, isolated in its own subprocess so a bad run can't take the API down with it.
-
-</details>
-
-<details>
-<summary><strong>2. A skill-gap recommendation request</strong></summary>
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant API as FastAPI
-    participant Auth as JWT Auth
-    participant Cache as Redis
-    participant DB as PostgreSQL
-    participant ML as Semantic Matcher
-
-    U->>API: POST /recommend (target role + known skills)
-    API->>Auth: validate JWT
-    Auth-->>API: OK
-    API->>ML: resolve role (exact → alias → embedding)
-    ML-->>API: matched role
-    API->>Cache: check cached postings for role
-    alt cache hit
-        Cache-->>API: cached postings
-    else cache miss (or Redis down)
-        API->>DB: query matching postings
-        DB-->>API: postings
-        API->>Cache: store (fail-open — never blocks the request)
-    end
-    API->>API: diff known skills vs. market-demanded skills
-    API-->>U: ranked skill gaps + evidence links back to postings
-```
-
-The `/recommend/evidence` endpoint replays the same query and returns the actual postings behind a given number, instead of just the score.
-
-</details>
-
-<details>
-<summary><strong>3. Salary prediction</strong></summary>
-
-```mermaid
-flowchart LR
-    A["POST /predict-salary<br/>(role, skills, seniority, location)"] --> B["Load hot-reloaded model"]
-    B --> C{"Model fresh?"}
-    C -- "Stale (new postings ingested)" --> D["Reload latest trained model"]
-    C -- Fresh --> E["Predict"]
-    D --> E
-    E --> F["Return range + confidence"]
-```
-
-The model retrains only when the ingestion pipeline actually adds new postings — no wasted retrains on empty runs.
-
-</details>
-
-<details>
-<summary><strong>4. Trend comparison</strong></summary>
-
-```mermaid
-flowchart LR
-    A["GET /trends/{skill}"] --> B["Restrict to fixed 8-role whitelist"]
-    B --> C["Compare two 30-day windows"]
-    C --> D["Return % change in demand"]
-```
-
-Restricted to a fixed role set deliberately — without it, an increase in search coverage looks identical to a real increase in demand. This is a comparison, not a forecast; real time-series forecasting (Prophet/ARIMA) is parked until there's enough months of consistent data to make it meaningful.
-
-</details>
-
----
-
-## 🧭 Development Journey
-
-NextSkill wasn't built in one pass — each phase closed a specific gap before moving on.
-
-| Phase | Focus | What landed |
-| --- | --- | --- |
-| **1. Foundation** | Get a real signal working end to end | Auth, skill-gap recommender with evidence links, trends, skill co-occurrence, CI pipeline |
-| **2. Trust infra** | Make the numbers defensible | Alembic migrations, scheduled ingestion with healthchecks, fail-open Redis caching, Sentry + structured logging |
-| **3. The differentiators** | Move past "just a recommender" | Resume parsing, salary prediction, role-transition graph |
-| **4. Smarter matching** | Reduce false negatives on role names | Semantic embedding fallback, seniority segmentation, lifecycle labels |
-| **5. Retention** | Make it worth coming back to | Recommendation history + progress diff, shareable public reports, on-demand digest |
-| **6. Backend redesign** | Fix data-quality confounds, scale sources | Two-source ingestion (Adzuna + RemoteOK), structured skill taxonomy, hot-reload salary model, JSONB schema, fixed-role-whitelist trend comparison to control for search-coverage confounds |
-| **7. Next up** | Ship it | Frontend rebuild on the staged fonts/illustrations, live deployment, admin UI, digest email delivery |
-
-Along the way: rate limiting was added on the compute-heavy endpoints after load-testing showed they needed it; adding auth briefly broke the existing test suite until the tests were updated to send credentials — now there's an explicit test asserting unauthenticated requests get a `401`, so that regression can't come back quietly.
-
----
-
-## 🛠️ Tech Stack
+## 🛠️ Built with
 
 | Layer                 | Technology                                                                                |
 | ---------------------- | ------------------------------------------------------------------------------------------ |
@@ -266,9 +284,10 @@ Along the way: rate limiting was added on the compute-heavy endpoints after load
 
 ---
 
-## ⚡ Getting Started
+## ⚡ Run it
 
-### Docker (recommended)
+<details open>
+<summary><strong>Docker (recommended)</strong></summary>
 
 ```bash
 git clone https://github.com/DharmiSapariya/NextSkill.git
@@ -284,8 +303,10 @@ docker compose up --build         # Postgres + Redis + API + scheduler, all wire
 | 🗄️ Postgres         | localhost:5433                |
 | 🔥 Redis             | localhost:6379                |
 
+</details>
+
 <details>
-<summary><strong>Manual setup (no Docker)</strong></summary>
+<summary><strong>Manual (no Docker)</strong></summary>
 
 ```bash
 cd NextSkill/backend
@@ -341,7 +362,7 @@ streamlit run streamlit_app.py
 
 ---
 
-## 📁 Project Structure
+## 📁 Where things live
 
 ```
 NextSkill/
@@ -354,9 +375,9 @@ NextSkill/
 
 ---
 
-## 🔌 API Reference
+## 🔌 Every endpoint
 
-<details open>
+<details>
 <summary><strong>Open endpoints (no auth)</strong></summary>
 
 | Method | Path                                                 | Description                                           |
@@ -411,14 +432,8 @@ NextSkill/
 
 ---
 
-## 🧭 Roadmap
+## 🧭 What's next
 
-- [x] Foundation — auth, skill-gap recommender w/ evidence, trends, co-occurrence, CI
-- [x] The three differentiators — resume parsing, salary prediction, role-transition graph
-- [x] Trust infra — Alembic, scheduled ingestion, Redis caching, Sentry
-- [x] Smarter matching — semantic fallback, seniority segmentation, lifecycle labels
-- [x] Retention — history/progress, shareable reports, digest
-- [x] Backend redesign — two-source ingestion, structured taxonomy, hot-reload salary model, JSONB schema
 - [ ] Frontend rebuild — a new UI on the staged fonts/illustrations
 - [ ] Live deployment — hosted API, frontend, and production database
 - [ ] Admin UI — a real frontend for `/admin/*`
@@ -426,7 +441,7 @@ NextSkill/
 
 ---
 
-## ⚠️ Known Limitations
+## ⚠️ Known limitations
 
 <details>
 <summary><strong>Click to expand — nothing here is hidden, just tucked away for readability</strong></summary>
