@@ -47,27 +47,6 @@ Thousands of tech job postings go up every day — each one a signal about what 
 
 ---
 
-## 📸 Screenshots
-
-<!--
-  Drop your own screenshots into `design-assets/screenshots/` and swap the
-  paths below — GitHub renders them inline once the files exist in the repo.
-  Suggested shots: dashboard overview, skill-gap recommendation + evidence
-  drawer, salary prediction card, role-transition graph, application tracker.
--->
-
-<table>
-  <tr>
-    <td width="50%"><img src="design-assets/screenshots/dashboard-overview.png" alt="Dashboard overview" /><p align="center"><sub>Streamlit operator dashboard</sub></p></td>
-    <td width="50%"><img src="design-assets/screenshots/skill-gap-evidence.png" alt="Skill-gap recommendation with evidence" /><p align="center"><sub>Skill-gap recommendation, click-through evidence</sub></p></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="design-assets/screenshots/salary-prediction.png" alt="Salary prediction" /><p align="center"><sub>Salary range prediction</sub></p></td>
-    <td width="50%"><img src="design-assets/screenshots/role-graph.png" alt="Role transition graph" /><p align="center"><sub>Role-transition & skill co-occurrence graph</sub></p></td>
-  </tr>
-</table>
-
-> Don't have these yet? Run the dashboard locally (`streamlit run dashboard/streamlit_app.py`), grab a few screenshots, drop them in `design-assets/screenshots/`, and this section lights up automatically.
 
 ---
 
