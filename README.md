@@ -10,7 +10,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 **2 job sources · 30+ endpoints · 156 tests · Every number backed by real postings**
-Built solo by [Dharmi Sapariya](https://github.com/DharmiSapariya)
+
 
 ---
 
