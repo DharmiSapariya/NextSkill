@@ -29,29 +29,6 @@ Thousands of tech job postings go up every day — each one a signal about what 
 
 ---
 
-## 📸 See it
-
-<!--
-  Drop your own screenshots into `design-assets/screenshots/` — GitHub
-  renders them inline the moment the files exist at these paths.
-  Suggested shots: dashboard overview, skill-gap recommendation + evidence
-  drawer, salary prediction card, role-transition graph, application tracker.
--->
-
-<table>
-  <tr>
-    <td width="50%"><img src="design-assets/screenshots/dashboard-overview.png" alt="Dashboard overview" /><p align="center"><sub>Streamlit operator dashboard</sub></p></td>
-    <td width="50%"><img src="design-assets/screenshots/skill-gap-evidence.png" alt="Skill-gap recommendation with evidence" /><p align="center"><sub>Skill-gap recommendation, click-through evidence</sub></p></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="design-assets/screenshots/salary-prediction.png" alt="Salary prediction" /><p align="center"><sub>Salary range prediction</sub></p></td>
-    <td width="50%"><img src="design-assets/screenshots/role-graph.png" alt="Role transition graph" /><p align="center"><sub>Role-transition & skill co-occurrence graph</sub></p></td>
-  </tr>
-</table>
-
-> Run the dashboard locally, grab a few screenshots, drop them in `design-assets/screenshots/` with the filenames above — this section lights up automatically, no markdown changes needed.
-
----
 
 ## 🗺️ The system, end to end
 
