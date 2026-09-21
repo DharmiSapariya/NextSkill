@@ -13,7 +13,7 @@
 
 <p align="center">
   <b>2 job sources · 30+ endpoints · 156 tests · Every number backed by real postings</b><br/>
-  <sub>Built by <a href="https://github.com/DharmiSapariya">Dharmi Sapariya</a> & <a href="https://github.com/bhavyasrimanduri-bhavya">Bhavya Srimanduri</a></sub>
+  
 </p>
 
 ---
