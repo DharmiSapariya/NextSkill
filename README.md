@@ -1,4 +1,4 @@
-# 🎯 NextSkill
+#                                                                 NextSkill
 
 **Evidence-based career intelligence for the tech job market** — free, and built for individuals, not enterprises.
 
