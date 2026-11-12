@@ -1503,3 +1503,22 @@ def test_career_plan_returns_gaps_with_resources_and_adjacent_roles(auth_headers
         first_gap = body["skill_gaps"][0]
         assert "resources" in first_gap
         assert len(first_gap["resources"]) >= 1
+
+
+def test_career_plan_uses_only_the_authenticated_profiles_skills():
+    from api import limiter
+
+    limiter.reset()
+    try:
+        for skill in ("Ownership skill alpha", "Ownership skill beta"):
+            email = f"career-plan-{uuid.uuid4().hex}@nextskill.dev"
+            signup = client.post("/auth/signup", json={"email": email, "password": "testpassword123"})
+            assert signup.status_code == 200, signup.text
+            headers = {"Authorization": f"Bearer {signup.json()['access_token']}"}
+            update = client.put("/auth/me/skills", json={"skills": [skill]}, headers=headers)
+            assert update.status_code == 200, update.text
+            response = client.get("/career-plan", params={"target_role": "software engineer"}, headers=headers)
+            assert response.status_code == 200, response.text
+            assert response.json()["your_skills"] == [skill]
+    finally:
+        limiter.reset()

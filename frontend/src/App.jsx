@@ -10,6 +10,7 @@ import Signup from "./app/pages/Signup";
 
 import RouteContent from "./app/RouteContent";
 
+const CareerPlan = lazy(() => import("./app/pages/CareerPlan"));
 const Overview = lazy(() => import("./app/pages/Overview"));
 const SkillGapReport = lazy(() => import("./app/pages/SkillGapReport"));
 const ResumeUpload = lazy(() => import("./app/pages/ResumeUpload"));
@@ -49,6 +50,7 @@ function App() {
             }
           >
             <Route index element={<Overview />} />
+            <Route path="career-plan" element={<CareerPlan />} />
             <Route path="report" element={<SkillGapReport />} />
             <Route path="resume" element={<ResumeUpload />} />
             <Route path="match" element={<MatchSalary />} />

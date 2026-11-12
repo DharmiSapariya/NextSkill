@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import {
   LayoutDashboard,
   Target,
+  Map,
   FileUp,
   Gauge,
   Briefcase,
@@ -36,6 +37,7 @@ function avatarColor(email) {
 
 const analyzeLinks = [
   { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/app/career-plan", label: "Career Plan", icon: Map },
   { to: "/app/report", label: "Skill-Gap Report", icon: Target },
   { to: "/app/resume", label: "Resume Upload", icon: FileUp },
   { to: "/app/match", label: "Match & Salary", icon: Gauge },

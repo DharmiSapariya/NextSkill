@@ -114,3 +114,6 @@ export const getAdminStats = () => request("/admin/stats");
 export const getAdminUsers = (params = {}) => request(`/admin/users?${new URLSearchParams(params)}`);
 export const updateAdminUser = (userId, body) => request(`/admin/users/${userId}`, { method: "PUT", body });
 export const deleteAdminUser = (userId) => request(`/admin/users/${userId}`, { method: "DELETE" });
+
+export const getCareerPlan = (targetRole, signal) =>
+  request(`/career-plan?${new URLSearchParams({ target_role: targetRole })}`, { signal });
