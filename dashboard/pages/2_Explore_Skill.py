@@ -38,10 +38,10 @@ if st.button("Look it up"):
 
                     prev, curr = t["previous_period"], t["current_period"]
                     m1, m2, m3 = st.columns(3)
-                    m1.metric("Previous period share", f"{prev['share_pct']}%")
+                    m1.metric("Previous period share", f"{prev['share_pct']}%" if prev["share_pct"] is not None else "Unavailable")
                     m2.metric(
                         "Current period share",
-                        f"{curr['share_pct']}%",
+                        f"{curr['share_pct']}%" if curr["share_pct"] is not None else "Unavailable",
                         delta=f"{t['change_pct']}%" if t.get("change_pct") is not None else None,
                     )
                     m3.metric("Total mentions ever", t["total_mentions"])

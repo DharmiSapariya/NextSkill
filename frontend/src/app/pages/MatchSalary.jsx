@@ -1,7 +1,8 @@
+import SalaryTransparency from "./SalaryTransparency";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowRight, TrendingUp, DollarSign, Plus, X, Scale, Target } from "lucide-react";
+import { ArrowRight, TrendingUp, Plus, X, Scale, Target } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import * as api from "../../lib/api";
 import { PageHeader, Card, Button, Badge, LoadingState, InfoHint } from "../ui";
@@ -85,31 +86,7 @@ function MissingSkillRow({ skill, pct }) {
   );
 }
 
-// A single low/mid/high range rendered as a bar instead of three separate
-// numbers — the midpoint marker sits at its actual proportional position
-// between low and high, not centered by default.
-function SalaryBar({ low, high, mid }) {
-  const span = Math.max(1, high - low);
-  const midPct = ((mid - low) / span) * 100;
-  return (
-    <div className="mt-4">
-      <div className="relative h-3 rounded-full bg-gradient-to-r from-amber via-coral to-violet">
-        <motion.div
-          className="absolute top-1/2 h-5 w-5 -translate-y-1/2 -translate-x-1/2 rounded-full border-2 border-cream bg-forest shadow-sm"
-          initial={{ left: "50%" }}
-          animate={{ left: `${midPct}%` }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-        />
-      </div>
-      <div className="mt-1.5 flex justify-between text-[11px] text-forest/45">
-        <span>${low.toLocaleString()}</span>
-        <span>${high.toLocaleString()}</span>
-      </div>
-    </div>
-  );
-}
-
-function RoleResultPanel({ role, match, salary, salaryUnavailable, error }) {
+function RoleResultPanel({ role, match, salary, salaryError, error }) {
   return (
     <div className="flex flex-col gap-6">
       {error && <p className="text-sm font-medium text-red-600">{error}</p>}
@@ -162,35 +139,7 @@ function RoleResultPanel({ role, match, salary, salaryUnavailable, error }) {
         </Card>
       )}
 
-      <Card>
-        <div className="flex items-center gap-2 text-forest/70">
-          <DollarSign className="h-4 w-4" />
-          <span className="font-kicker text-xs uppercase tracking-widest">Predicted salary</span>
-          <InfoHint text="Estimated from postings for the closest matching role bucket in our data, not a guarantee of pay." />
-        </div>
-
-        {salaryUnavailable && (
-          <p className="mt-4 text-sm text-forest/60">
-            No salary model has been trained yet for this dataset — check back once one is available.
-          </p>
-        )}
-
-        {salary && (
-          <>
-            <p className="mt-4 font-display text-2xl font-bold text-forest">
-              ${salary.predicted_salary_low.toLocaleString()} – ${salary.predicted_salary_high.toLocaleString()}
-            </p>
-            <p className="mt-1 text-sm text-forest/60">
-              Midpoint estimate: ${salary.predicted_salary_midpoint.toLocaleString()}
-            </p>
-            <SalaryBar low={salary.predicted_salary_low} high={salary.predicted_salary_high} mid={salary.predicted_salary_midpoint} />
-            <p className="mt-3 text-xs text-forest/45">
-              Matched role bucket: <span className="capitalize">{salary.matched_role_bucket}</span> · confidence
-              interval width ${salary.confidence_interval_width.toLocaleString()}
-            </p>
-          </>
-        )}
-      </Card>
+      <SalaryTransparency salary={salary} error={salaryError} />
     </div>
   );
 }
@@ -204,7 +153,7 @@ export default function MatchSalary() {
   const [error, setError] = useState(null);
   const [match, setMatch] = useState(null);
   const [salary, setSalary] = useState(null);
-  const [salaryUnavailable, setSalaryUnavailable] = useState(false);
+  const [salaryError, setSalaryError] = useState(null);
 
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareRole, setCompareRole] = useState("");
@@ -212,7 +161,7 @@ export default function MatchSalary() {
   const [compareError, setCompareError] = useState(null);
   const [compareMatch, setCompareMatch] = useState(null);
   const [compareSalary, setCompareSalary] = useState(null);
-  const [compareSalaryUnavailable, setCompareSalaryUnavailable] = useState(false);
+  const [compareSalaryError, setCompareSalaryError] = useState(null);
 
   const runFor = async (targetRole) => {
     const [matchRes, salaryRes] = await Promise.allSettled([
@@ -223,7 +172,11 @@ export default function MatchSalary() {
       match: matchRes.status === "fulfilled" ? matchRes.value : null,
       matchError: matchRes.status === "rejected" ? matchRes.reason.message : null,
       salary: salaryRes.status === "fulfilled" ? salaryRes.value : null,
-      salaryUnavailable: salaryRes.status === "rejected" && salaryRes.reason.status === 503,
+      salaryError: salaryRes.status === "rejected"
+        ? salaryRes.reason.status === 503
+          ? "Salary estimate unavailable. A model may not be available for this dataset."
+          : "Salary estimate could not be loaded. Try again."
+        : null,
     };
   };
 
@@ -234,13 +187,13 @@ export default function MatchSalary() {
     setError(null);
     setMatch(null);
     setSalary(null);
-    setSalaryUnavailable(false);
+    setSalaryError(null);
 
     const result = await runFor(role);
     setMatch(result.match);
     setError(result.matchError);
     setSalary(result.salary);
-    setSalaryUnavailable(result.salaryUnavailable);
+    setSalaryError(result.salaryError);
     setLoading(false);
   };
 
@@ -251,13 +204,13 @@ export default function MatchSalary() {
     setCompareError(null);
     setCompareMatch(null);
     setCompareSalary(null);
-    setCompareSalaryUnavailable(false);
+    setCompareSalaryError(null);
 
     const result = await runFor(compareRole);
     setCompareMatch(result.match);
     setCompareError(result.matchError);
     setCompareSalary(result.salary);
-    setCompareSalaryUnavailable(result.salaryUnavailable);
+    setCompareSalaryError(result.salaryError);
     setCompareLoading(false);
   };
 
@@ -270,28 +223,19 @@ export default function MatchSalary() {
         : "compare"
       : null;
 
-  const salaryWinner =
-    salary && compareSalary
-      ? salary.predicted_salary_midpoint === compareSalary.predicted_salary_midpoint
-        ? "tie"
-        : salary.predicted_salary_midpoint > compareSalary.predicted_salary_midpoint
-        ? "primary"
-        : "compare"
-      : null;
-
   return (
     <div>
       <PageHeader
         kicker="Analyze"
         title="Match Score & Salary"
-        description="See what percentage of real postings your skills would be a strong match for, and a predicted salary range."
+        description="See what percentage of real postings your skills would be a strong match for, and review the salary model’s data and limitations."
       />
 
       <div className="mb-8 flex flex-wrap items-center justify-between gap-6 overflow-hidden rounded-2xl border border-forest/10 bg-lime/20 px-6 py-6 sm:px-8">
         <div>
           <span className="font-kicker text-xs uppercase tracking-widest text-forest/50">Analyze</span>
           <p className="mt-2 max-w-xl font-display text-xl font-bold text-forest sm:text-2xl">
-            Compare any target role against your {skills.length} saved skill{skills.length === 1 ? "" : "s"} — score and salary,
+            Compare any target role against your {skills.length} saved skill{skills.length === 1 ? "" : "s"} — score and salary evidence,
             side by side.
           </p>
         </div>
@@ -300,7 +244,7 @@ export default function MatchSalary() {
 
       <Card>
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-4">
-          <div className="min-w-[240px] flex-1">
+          <div className="min-w-0 flex-1 basis-52">
             <Autocomplete
               label="Target role"
               placeholder="e.g. Backend Developer"
@@ -326,7 +270,7 @@ export default function MatchSalary() {
 
       {loading && <LoadingState label="Scoring your profile against the market…" />}
 
-      {(match || salary) && (
+      {!loading && (match || salary || error || salaryError) && (
         <>
           <div className="mt-8">
             {!compareOpen ? (
@@ -372,29 +316,27 @@ export default function MatchSalary() {
 
           {compareLoading && <LoadingState label="Scoring the second role…" />}
 
-          {(compareMatch || compareSalary) && !compareLoading ? (
+          {(compareMatch || compareSalary || compareError || compareSalaryError) && !compareLoading ? (
             <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div>
                 <div className="mb-3 flex items-center gap-2">
                   <Target className="h-4 w-4 text-forest/50" />
                   <h3 className="font-display text-sm font-bold capitalize text-forest">{role}</h3>
                   {winner === "primary" && <Badge tone="lime">Higher match</Badge>}
-                  {salaryWinner === "primary" && <Badge tone="amber">Higher salary</Badge>}
                 </div>
-                <RoleResultPanel role={role} match={match} salary={salary} salaryUnavailable={salaryUnavailable} error={error} />
+                <RoleResultPanel role={role} match={match} salary={salary} salaryError={salaryError} error={error} />
               </div>
               <div>
                 <div className="mb-3 flex items-center gap-2">
                   <Target className="h-4 w-4 text-forest/50" />
                   <h3 className="font-display text-sm font-bold capitalize text-forest">{compareRole}</h3>
                   {winner === "compare" && <Badge tone="lime">Higher match</Badge>}
-                  {salaryWinner === "compare" && <Badge tone="amber">Higher salary</Badge>}
                 </div>
                 <RoleResultPanel
                   role={compareRole}
                   match={compareMatch}
                   salary={compareSalary}
-                  salaryUnavailable={compareSalaryUnavailable}
+                  salaryError={compareSalaryError}
                   error={compareError}
                 />
               </div>
@@ -402,7 +344,7 @@ export default function MatchSalary() {
           ) : (
             !compareLoading && (
               <div className="mt-8">
-                <RoleResultPanel role={role} match={match} salary={salary} salaryUnavailable={salaryUnavailable} error={error} />
+                <RoleResultPanel role={role} match={match} salary={salary} salaryError={salaryError} error={error} />
               </div>
             )
           )}

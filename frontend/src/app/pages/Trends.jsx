@@ -1,3 +1,4 @@
+import MarketMetadata from "../MarketMetadata";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -28,8 +29,10 @@ const TREND_ICON = { rising: TrendingUp, falling: TrendingDown, flat: Minus, new
 const TREND_COLOR = { rising: "var(--lime)", falling: "var(--coral)", flat: "var(--periwinkle)", new: "var(--periwinkle)" };
 
 function formatDateRange(startIso, endIso) {
-  const opts = { month: "short", day: "numeric" };
-  return `${new Date(startIso).toLocaleDateString(undefined, opts)} – ${new Date(endIso).toLocaleDateString(undefined, opts)}`;
+  const opts = { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" };
+  const end = new Date(endIso);
+  end.setUTCDate(end.getUTCDate() - 1);
+  return `${new Date(startIso).toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`;
 }
 
 function PeriodBar({ label, dateRange, share }) {
@@ -39,16 +42,16 @@ function PeriodBar({ label, dateRange, share }) {
         <span>
           {label} <span className="text-forest/35">· {dateRange}</span>
         </span>
-        <span className="font-semibold text-forest">{share}%</span>
+        <span className="font-semibold text-forest">{share == null ? "No observations" : `${share}%`}</span>
       </div>
-      <div className="mt-1 h-2 overflow-hidden rounded-full bg-forest/8">
+      {share != null && <div className="mt-1 h-2 overflow-hidden rounded-full bg-forest/8">
         <motion.div
           className="h-full rounded-full bg-periwinkle"
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(share * 2, 100)}%` }}
           transition={{ duration: 0.7, ease: "easeOut" }}
         />
-      </div>
+      </div>}
     </div>
   );
 }
@@ -129,7 +132,7 @@ function TrendPanel({ result }) {
             style={{ backgroundColor: trendColor, opacity: 0.85 }}
           >
             <TrendIcon className="h-3.5 w-3.5" />
-            {result.trend}
+            {result.trend.replace("_", " ")}
             {result.change_pct != null && ` (${result.change_pct > 0 ? "+" : ""}${result.change_pct}%)`}
           </span>
         </div>
@@ -139,7 +142,9 @@ function TrendPanel({ result }) {
         {result.total_mentions.toLocaleString()} total mentions across all ingested postings
       </p>
 
-      <ShareFlow previousShare={result.previous_period.share_pct} currentShare={result.current_period.share_pct} trendColor={trendColor} />
+      {result.previous_period.share_pct != null && result.current_period.share_pct != null && (
+        <ShareFlow previousShare={result.previous_period.share_pct} currentShare={result.current_period.share_pct} trendColor={trendColor} />
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <PeriodBar
@@ -173,6 +178,7 @@ function TrendPanel({ result }) {
         </div>
       </div>
 
+      <MarketMetadata data={result.market_metadata} scope="Dated postings for the tracked core roles across both comparison windows." />
       <MethodologyPanel methodology={result.methodology} caveat={result.caveat} />
     </Card>
   );

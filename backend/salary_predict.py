@@ -1,3 +1,4 @@
+from datetime import date
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ import joblib
 import numpy as np
 
 from role_matcher import resolve_role
+from market_metadata import POSTING_AGE_NOTICE_DAYS, older_than_notice
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("nextskill.ai.salary_inference")
@@ -115,7 +117,26 @@ def predict_salary(skills: List[str], target_role: str) -> Optional[Dict[str, An
     # 4. Compute monotonic percentiles
     low, mid, high = np.percentile(tree_preds, [25, 50, 75])
 
+    provenance = getattr(_model, "nextskill_salary_metadata_", {})
+    role_counts = provenance.get("role_observation_counts")
+    latest_date = provenance.get("latest_posted_date")
     return {
+        "estimate_metadata": {
+            "currency": None,
+            "pay_period": None,
+            "collection_timestamp": None,
+            "location_adjusted": False,
+            "experience_adjusted": False,
+            "observation_count": provenance.get("observation_count"),
+            "role_observation_count": role_counts.get(matched_bucket, 0) if role_counts is not None else None,
+            "sources": provenance.get("sources"),
+            "latest_posted_date": latest_date,
+            "posting_age_notice_days": POSTING_AGE_NOTICE_DAYS,
+            "latest_posting_older_than_notice": older_than_notice(date.fromisoformat(latest_date) if latest_date else None),
+            "trained_on": provenance.get("trained_on"),
+            "trained_at": provenance.get("trained_at"),
+            "methodology": "Random forest using job-title role buckets and posting skills, trained on salary-range midpoints. The range uses tree prediction quartiles, which do not establish a statistical confidence interval.",
+        },
         "target_role": target_role,
         "matched_role_bucket": matched_bucket,
         "predicted_salary_low": int(round(float(low))),

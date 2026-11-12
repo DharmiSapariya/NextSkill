@@ -43,6 +43,7 @@ from digest import compute_digest_for_user
 from cache import cache_get, cache_set, redis_healthy
 from seniority import infer_seniority, as_postgres_regex, SENIORITY_PATTERNS
 from learning_resources import resources_for_skill
+from market_metadata import posting_source, summarize_postings
 
 app = FastAPI(
     title="NextSkill API",
@@ -610,11 +611,12 @@ def list_jobs(
         else:
             query = query.filter(Job.title.op("~*")(as_postgres_regex(SENIORITY_PATTERNS[seniority])))
 
-    total = query.count()
+    market_metadata = summarize_postings(query)
     jobs = query.offset(offset).limit(limit).all()
 
     return {
-        "total": total,
+        "total": market_metadata["posting_count"],
+        "market_metadata": market_metadata,
         "limit": limit,
         "offset": offset,
         "results": [
@@ -625,6 +627,8 @@ def list_jobs(
                 "location": j.location,
                 "category": j.category,
                 "source": j.source,
+                "source_attribution": posting_source(j),
+                "posted_date": j.posted_date,
                 "seniority": infer_seniority(j.title),
             }
             for j in jobs
@@ -645,6 +649,8 @@ def get_job(job_id: int):
         "category": job.category,
         "description": job.description,
         "source": job.source,
+        "source_attribution": posting_source(job),
+        "posted_date": job.posted_date,
     }
 
 
@@ -913,6 +919,7 @@ def list_companies(
     q: Optional[str] = Query(None, description="Filter by keyword in company name"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    include_market_metadata: bool = Query(True, description="Include posting provenance for this company search"),
 ):
     """Full paginated/searchable company browse — /companies/top is a fixed-size
     leaderboard (top N by posting count, no paging, no name search); this is
@@ -923,18 +930,25 @@ def list_companies(
         .group_by(Company.name)
     )
     if q:
-        query = query.filter(Company.name.ilike(f"%{q}%"))
+        name_filter = Company.name.ilike(f"%{q}%")
+        query = query.filter(name_filter)
 
     # total distinct companies matching the filter, independent of pagination
     total = query.count()
     results = query.order_by(func.count(Job.id).desc()).offset(offset).limit(limit).all()
 
-    return {
+    response = {
         "total": total,
         "limit": limit,
         "offset": offset,
         "results": [{"company": name, "postings": count} for name, count in results],
     }
+    if include_market_metadata:
+        market_query = db_session.query(Job).join(Company, Company.id == Job.company_id)
+        if q:
+            market_query = market_query.filter(name_filter)
+        response["market_metadata"] = summarize_postings(market_query)
+    return response
 
 
 ADMIN_SIGNUP_WINDOW_DAYS = 30
@@ -1183,7 +1197,7 @@ def _trend_window():
 
 @app.get("/trends/{skill_name}")
 def skill_trend(skill_name: str):
-    cache_key = f"trend:{skill_name.lower()}"
+    cache_key = f"trend:v2:{skill_name.lower()}"
     cached = cache_get(cache_key)
     if cached is not None:
         return cached
@@ -1202,10 +1216,18 @@ def skill_trend(skill_name: str):
     previous_total = _total_postings_in_range(previous_start, current_start)
     current_total = _total_postings_in_range(current_start, current_end)
 
-    previous_share = round((previous_mentions / previous_total) * 100, 2) if previous_total else 0
-    current_share = round((current_mentions / current_total) * 100, 2) if current_total else 0
-    change_pct, direction = _classify_trend(previous_share, current_share)
-    lifecycle = _classify_lifecycle(previous_share, current_share, direction)
+    previous_share = round((previous_mentions / previous_total) * 100, 2) if previous_total else None
+    current_share = round((current_mentions / current_total) * 100, 2) if current_total else None
+    if previous_share is None or current_share is None:
+        change_pct, direction, lifecycle = None, "insufficient_data", "insufficient_data"
+    else:
+        change_pct, direction = _classify_trend(previous_share, current_share)
+        lifecycle = _classify_lifecycle(previous_share, current_share, direction)
+    market_metadata = summarize_postings(
+        db_session.query(Job).filter(
+            _core_role_filter(), Job.posted_date >= previous_start, Job.posted_date < current_end
+        )
+    )
 
     total_mentions = db_session.query(JobSkill).filter_by(skill_id=skill.id).count()
 
@@ -1213,6 +1235,7 @@ def skill_trend(skill_name: str):
         "skill": skill.name,
         "total_mentions": total_mentions,
         "window_days": TREND_WINDOW_DAYS,
+        "market_metadata": market_metadata,
         "previous_period": {
             "start": previous_start.isoformat(),
             "end": current_start.isoformat(),
@@ -1231,8 +1254,8 @@ def skill_trend(skill_name: str):
         "trend": direction,
         "lifecycle": lifecycle,
         "methodology": (
-            f"Compares two adjacent {TREND_WINDOW_DAYS}-day windows, anchored to the most "
-            f"recently ingested posting, restricted to a fixed set of {len(CORE_TREND_ROLES)} "
+            f"Compares two adjacent {TREND_WINDOW_DAYS}-day windows, anchored to the newest "
+            f"recorded posting date, restricted to a fixed set of {len(CORE_TREND_ROLES)} "
             "core roles (software/backend/frontend/full-stack/data/ML roles) to control for "
             "search coverage expanding from a smaller initial role set to 21 roles over the "
             "project's timeline. `lifecycle` combines `trend` with whether current_period's "

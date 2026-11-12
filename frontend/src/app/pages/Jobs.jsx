@@ -1,3 +1,5 @@
+import MarketMetadata from "../MarketMetadata";
+import { postingDate, sourceLabel } from "../../lib/marketMetadata";
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -89,6 +91,7 @@ export default function Jobs() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
     setFetching(true);
     setError(null);
     const params = { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
@@ -97,10 +100,20 @@ export default function Jobs() {
     if (seniority) params.seniority = seniority;
 
     api
-      .getJobs(params)
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setFetching(false));
+      .getJobs(params, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setData(result);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setData(null);
+          setError(error.message);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setFetching(false);
+      });
+    return () => controller.abort();
   }, [role, location, seniority, page]);
 
   const updateParam = (key, value) => {
@@ -175,13 +188,13 @@ export default function Jobs() {
 
   return (
     <div>
-      <PageHeader kicker="Explore" title="Jobs" description="Browse real postings we've ingested." />
+      <PageHeader kicker="Explore" title="Jobs" description="Browse job postings in the dataset." />
 
       <div className="mb-8 flex flex-wrap items-center justify-between gap-6 overflow-hidden rounded-2xl border border-forest/10 bg-amber/20 px-6 py-6 sm:px-8">
         <div>
-          <span className="font-kicker text-xs uppercase tracking-widest text-forest/50">Live postings</span>
+          <span className="font-kicker text-xs uppercase tracking-widest text-forest/50">Stored postings</span>
           <p className="mt-2 max-w-xl font-display text-xl font-bold text-forest sm:text-2xl">
-            {data ? `${data.total.toLocaleString()} postings` : "Postings"} match your current filters right now.
+            {data ? `${data.total.toLocaleString()} postings` : "Postings"} match your current filters.
           </p>
         </div>
         <img src="/illustrations/14n.png" alt="" className="hidden h-28 w-28 shrink-0 object-contain sm:block" />
@@ -249,10 +262,11 @@ export default function Jobs() {
       <div className="mt-6">
         {fetching && !data && <LoadingState label="Loading postings…" />}
         {error && <ErrorState message={error} />}
+        {data && !fetching && !error && <MarketMetadata data={data.market_metadata} scope="All matching records across pages." />}
 
-        {data && data.results.length === 0 && (
+        {data && !fetching && !error && data.results.length === 0 && (
           <EmptyState
-            title="No postings match those filters"
+            title={activeFilters.length ? "No postings match those filters" : "No postings available"}
             description="Try broadening your search."
             action={
               activeFilters.length > 0 && (
@@ -294,6 +308,8 @@ export default function Jobs() {
                           <h3 className="truncate font-display text-base font-bold text-forest">{job.title}</h3>
                           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-forest/55">
                             {job.company && <span>{job.company}</span>}
+                            <span>{sourceLabel(job.source_attribution === undefined ? job.source : job.source_attribution)}</span>
+                            <span>Posted: {postingDate(job.posted_date)}</span>
                             {job.location && (
                               <span className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3" /> {job.location}

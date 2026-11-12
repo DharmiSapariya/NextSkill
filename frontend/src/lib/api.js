@@ -90,7 +90,7 @@ export const getNearestRoles = (role, limit = 5) =>
   request(`/roles/${encodeURIComponent(role)}/nearest?${new URLSearchParams({ limit })}`, { auth: false });
 
 // --- Jobs ---
-export const getJobs = (params = {}) => request(`/jobs?${new URLSearchParams(params)}`, { auth: false });
+export const getJobs = (params = {}, signal) => request(`/jobs?${new URLSearchParams(params)}`, { auth: false, signal });
 export const getJob = (jobId) => request(`/jobs/${jobId}`, { auth: false });
 export const saveJob = (jobId) => request(`/jobs/${jobId}/save`, { method: "POST" });
 export const unsaveJob = (jobId) => request(`/jobs/${jobId}/save`, { method: "DELETE" });

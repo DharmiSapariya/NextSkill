@@ -46,7 +46,7 @@ def test_train_model_skips_cleanly_with_insufficient_data(monkeypatch):
     monkeypatch.setattr(
         train_salary_model,
         "build_dataset",
-        lambda: (np.zeros((5, 3)), np.zeros(5), ["software engineer"] * 5, ["Python", "SQL", "Docker"]),
+        lambda: (np.zeros((5, 3)), np.zeros(5), ["software engineer"] * 5, ["Python", "SQL", "Docker"], {}),
     )
     result = train_salary_model.train_model()
     assert result == {"status": "skipped", "reason": "only 5 salary-labeled postings, need at least 30"}
@@ -68,7 +68,7 @@ def test_train_model_trains_successfully_with_sufficient_data(monkeypatch, tmp_p
     monkeypatch.setattr(
         train_salary_model,
         "build_dataset",
-        lambda: (dummy_x, dummy_y, roles, skills),
+        lambda: (dummy_x, dummy_y, roles, skills, {"observation_count": n_samples}),
     )
 
     result = train_salary_model.train_model()
@@ -77,6 +77,8 @@ def test_train_model_trains_successfully_with_sufficient_data(monkeypatch, tmp_p
     assert result["tested_on"] > 0
     assert result["mae"] >= 0
     assert os.path.exists(os.path.join(str(model_dir), "salary_model.joblib"))
+    model = train_salary_model.joblib.load(model_dir / "salary_model.joblib")
+    assert model.nextskill_salary_metadata_["observation_count"] == n_samples
 
 
 # --- Cache Invalidation & Reloading Tests ---

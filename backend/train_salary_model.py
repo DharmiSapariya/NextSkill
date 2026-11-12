@@ -6,6 +6,8 @@ script or programmatically via pipeline.py orchestration ticks.
 """
 
 import json
+import math
+from datetime import datetime, timezone
 import os
 from collections import Counter
 from typing import Any, Dict, List, Set, Tuple
@@ -16,6 +18,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
 
+from market_metadata import posting_source
 from models import Job, JobSkill, SessionLocal, Skill
 
 MODEL_DIR = "model_artifacts"
@@ -39,40 +42,52 @@ def _role_bucket(title: str) -> str:
     return "other"
 
 
-def build_dataset() -> Tuple[np.ndarray, np.ndarray, List[str], List[str]]:
+def build_dataset() -> Tuple[np.ndarray, np.ndarray, List[str], List[str], Dict[str, Any]]:
     """Extracts job posting salaries, maps roles, and builds multi-hot skill feature matrices."""
     session = SessionLocal()
     try:
         # Retrieve salary-labeled jobs joining skills in a single efficient query
         query_results = (
             session.query(
-                Job.id,
-                Job.title,
-                Job.salary_min,
-                Job.salary_max,
+                Job.id, Job.external_id, Job.title, Job.source, Job.posted_date,
+                Job.salary_min, Job.salary_max,
                 Skill.name.label("skill_name"),
             )
             .outerjoin(JobSkill, Job.id == JobSkill.job_id)
             .outerjoin(Skill, Skill.id == JobSkill.skill_id)
             .filter(Job.salary_min.isnot(None))
             .filter(Job.salary_max.isnot(None))
+            .filter(~Job.external_id.like("demo-%"), Job.source != "demo")
             .all()
         )
 
         if not query_results:
-            return np.array([]), np.array([]), [], []
+            return np.array([]), np.array([]), [], [], {}
 
         job_salaries: Dict[int, float] = {}
         job_roles: Dict[int, str] = {}
         job_skills: Dict[int, Set[str]] = {}
 
-        for job_id, title, sal_min, sal_max, skill_name in query_results:
+        sources: Counter = Counter()
+        latest_posted_date = None
+        invalid_jobs = set()
+        for job in query_results:
+            job_id = job.id
+            if job_id in invalid_jobs:
+                continue
             if job_id not in job_salaries:
-                job_salaries[job_id] = float((sal_min + sal_max) / 2)
-                job_roles[job_id] = _role_bucket(title)
+                low, high = float(job.salary_min), float(job.salary_max)
+                if not math.isfinite(low) or not math.isfinite(high) or not 0 < low <= high:
+                    invalid_jobs.add(job_id)
+                    continue
+                job_salaries[job_id] = (low + high) / 2
+                job_roles[job_id] = _role_bucket(job.title)
                 job_skills[job_id] = set()
-            if skill_name:
-                job_skills[job_id].add(skill_name)
+                sources[posting_source(job)] += 1
+                if job.posted_date and (latest_posted_date is None or job.posted_date > latest_posted_date):
+                    latest_posted_date = job.posted_date
+            if job.skill_name:
+                job_skills[job_id].add(job.skill_name)
 
         # Determine Top N skills across all valid salary-labeled postings
         skill_counts = Counter(name for skills in job_skills.values() for name in skills)
@@ -85,7 +100,13 @@ def build_dataset() -> Tuple[np.ndarray, np.ndarray, List[str], List[str]]:
             y.append(salary_midpoint)
             roles.append(job_roles[job_id])
 
-        return np.array(X), np.array(y), roles, top_skills
+        metadata = {
+            "observation_count": len(y),
+            "sources": [{"source": source, "posting_count": count} for source, count in sources.most_common()],
+            "latest_posted_date": latest_posted_date.isoformat() if latest_posted_date else None,
+            "role_observation_counts": dict(Counter(roles)),
+        }
+        return np.array(X), np.array(y), roles, top_skills, metadata
     finally:
         session.close()
 
@@ -96,7 +117,7 @@ def train_model() -> Dict[str, Any]:
     Returns:
         Dict detailing training metrics or skip status.
     """
-    X, y, roles, top_skills = build_dataset()
+    X, y, roles, top_skills, metadata = build_dataset()
 
     if len(X) < 30:
         return {"status": "skipped", "reason": f"only {len(X)} salary-labeled postings, need at least 30"}
@@ -111,6 +132,12 @@ def train_model() -> Dict[str, Any]:
 
     model = RandomForestRegressor(n_estimators=200, max_depth=8, random_state=42)
     model.fit(X_train, y_train)
+    # Keep provenance on the model it describes, including when artifacts reload.
+    model.nextskill_salary_metadata_ = {
+        **metadata,
+        "trained_on": len(X_train),
+        "trained_at": datetime.now(timezone.utc).isoformat(),
+    }
 
     preds = model.predict(X_test)
     mae = mean_absolute_error(y_test, preds)
@@ -133,7 +160,7 @@ def train_model() -> Dict[str, Any]:
 if __name__ == "__main__":
     result = train_model()
     if result["status"] == "trained":
-        print(f"Trained on {result['trained_on']} rows, tested on {result['tested_on']}. MAE: ${result['mae']:,.0f}")
+        print(f"Trained on {result['trained_on']} rows, tested on {result['tested_on']}. MAE in source units: {result['mae']:,.0f}")
         print(f"Saved model to {MODEL_DIR}/salary_model.joblib")
     else:
         print(result["reason"])

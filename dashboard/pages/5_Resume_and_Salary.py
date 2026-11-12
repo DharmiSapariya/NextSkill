@@ -93,10 +93,12 @@ with tab_salary:
                     st.info("No salary model has been trained yet.")
                 elif resp.status_code == 200:
                     data = resp.json()
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Low estimate", f"${data['predicted_salary_low']:,.0f}")
-                    c2.metric("Midpoint", f"${data['predicted_salary_midpoint']:,.0f}")
-                    c3.metric("High estimate", f"${data['predicted_salary_high']:,.0f}")
+                    st.info("Salary amount withheld. Currency and pay period are unverified.")
+                    metadata = data.get("estimate_metadata") or {}
+                    observations = metadata.get("observation_count")
                     st.caption(f"Matched role bucket: {data['matched_role_bucket']}")
+                    st.caption(f"Dataset observations: {observations if observations is not None else 'Unavailable'}")
+                    if metadata.get("methodology"):
+                        st.caption(metadata["methodology"])
                 else:
                     st.error(f"Unexpected response: {resp.status_code}")

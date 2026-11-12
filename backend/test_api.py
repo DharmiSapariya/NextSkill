@@ -747,6 +747,11 @@ def test_predict_salary_returns_a_range(auth_headers):
     if response.status_code == 200:
         data = response.json()
         assert data["predicted_salary_low"] <= data["predicted_salary_midpoint"] <= data["predicted_salary_high"]
+        metadata = data["estimate_metadata"]
+        assert metadata["currency"] is None
+        assert metadata["pay_period"] is None
+        assert metadata["collection_timestamp"] is None
+
 
 
 def test_transition_graph_returns_nodes_and_edges():
@@ -1522,3 +1527,94 @@ def test_career_plan_uses_only_the_authenticated_profiles_skills():
             assert response.json()["your_skills"] == [skill]
     finally:
         limiter.reset()
+
+
+def test_market_metadata_counts_scoped_records_and_missing_fields():
+    from datetime import date, timedelta
+    from models import Job, db_session
+
+    scope = f"market-audit-{uuid.uuid4().hex}"
+    old = date.today() - timedelta(days=60)
+    rows = [
+        Job(external_id=f"{scope}-1", title=scope, source="adzuna", location="Remote - India", posted_date=old),
+        Job(external_id=f"{scope}-2", title=scope, source=" ", location=None),
+        Job(external_id=f"demo-{scope}", title=scope, source="remoteok", location="Mumbai"),
+    ]
+    db_session.add_all(rows)
+    db_session.commit()
+    try:
+        response = client.get("/jobs", params={"role": scope, "limit": 1})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        metadata = body["market_metadata"]
+        assert len(body["results"]) == 1
+        assert body["total"] == metadata["posting_count"] == 3
+        assert metadata["dated_posting_count"] == 1
+        assert metadata["latest_posted_date"] == old.isoformat()
+        assert metadata["latest_posting_older_than_notice"] is True
+        assert metadata["collection_timestamp"] is None
+        assert metadata["location_text_count"] == 2
+        assert metadata["remote_location_text_count"] == 1
+        assert {source["source"]: source["posting_count"] for source in metadata["sources"]} == {
+            None: 1, "adzuna": 1, "demo": 1,
+        }
+
+        demo = client.get(f"/jobs/{rows[2].id}").json()
+        assert demo["source_attribution"] == "demo"
+        assert demo["posted_date"] is None
+
+        empty = client.get("/jobs", params={"role": f"{scope}-missing"}).json()["market_metadata"]
+        assert empty["posting_count"] == 0
+        assert empty["latest_posted_date"] is None
+        assert empty["latest_posting_older_than_notice"] is None
+        assert empty["sources"] == []
+    finally:
+        for row in rows:
+            db_session.delete(row)
+        db_session.commit()
+
+
+def test_market_metadata_companies_scope_excludes_unmatched_companies():
+    response = client.get("/companies", params={"q": f"missing-{uuid.uuid4().hex}"})
+    assert response.status_code == 200
+    assert response.json()["total"] == 0
+    assert response.json()["market_metadata"]["posting_count"] == 0
+    suggestions = client.get("/companies", params={"include_market_metadata": False}).json()
+    assert "market_metadata" not in suggestions
+
+
+def test_market_metadata_trend_without_observations_has_no_comparison(monkeypatch):
+    from datetime import date
+    import api
+
+    monkeypatch.setattr(api, "cache_get", lambda key: None)
+    monkeypatch.setattr(api, "cache_set", lambda *args, **kwargs: None)
+    monkeypatch.setattr(api, "_trend_window", lambda: (date(1900, 1, 1), date(1900, 1, 31), date(1900, 3, 2)))
+    response = client.get("/trends/Python")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["trend"] == data["lifecycle"] == "insufficient_data"
+    assert data["previous_period"]["share_pct"] is None
+    assert data["current_period"]["share_pct"] is None
+    assert data["market_metadata"]["posting_count"] == 0
+
+
+def test_salary_dataset_excludes_missing_invalid_and_demo_ranges():
+    from models import Job, db_session
+    from train_salary_model import build_dataset
+
+    before = build_dataset()[4]["observation_count"]
+    scope = f"salary-audit-{uuid.uuid4().hex}"
+    rows = [
+        Job(external_id=f"{scope}-{index}", title=scope, source="seed", salary_min=low, salary_max=high)
+        for index, (low, high) in enumerate([(1, 2), (None, 2), (0, 2), (10, 5)])
+    ]
+    rows.append(Job(external_id=f"demo-{scope}", title=scope, source="adzuna", salary_min=1, salary_max=2))
+    db_session.add_all(rows)
+    db_session.commit()
+    try:
+        assert build_dataset()[4]["observation_count"] == before + 1
+    finally:
+        for row in rows:
+            db_session.delete(row)
+        db_session.commit()

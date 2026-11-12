@@ -1,3 +1,4 @@
+import MarketMetadata from "../MarketMetadata";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -138,14 +139,13 @@ export default function Companies() {
 
   return (
     <div>
-      <PageHeader kicker="Explore" title="Companies" description="Who's actually hiring, ranked by how many postings we've seen from them." />
+      <PageHeader kicker="Explore" title="Companies" description="Companies ranked by posting counts in the dataset." />
 
       <div className="mb-8 flex flex-wrap items-center justify-between gap-6 overflow-hidden rounded-2xl border border-forest/10 bg-sky/25 px-6 py-6 sm:px-8">
         <div>
-          <span className="font-kicker text-xs uppercase tracking-widest text-forest/50">Live hiring signal</span>
+          <span className="font-kicker text-xs uppercase tracking-widest text-forest/50">Recorded posting activity</span>
           <p className="mt-2 max-w-xl font-display text-xl font-bold text-forest sm:text-2xl">
-            {list ? `${list.total.toLocaleString()} companies` : "Companies"} with real postings we've ingested — every count
-            below reflects postings actually seen, not estimates.
+            {list ? `${list.total.toLocaleString()} companies` : "Companies"} with postings in the dataset. Counts reflect stored records.
           </p>
         </div>
         <img src="/illustrations/17n.png" alt="" className="hidden h-28 w-28 shrink-0 object-contain sm:block" />
@@ -219,7 +219,7 @@ export default function Companies() {
             updateQuery(name);
           }}
           getOptions={(query) =>
-            api.getCompanies({ q: query, limit: 8 }).then((res) => res.results.map((c) => c.company))
+            api.getCompanies({ q: query, limit: 8, include_market_metadata: false }).then((res) => res.results.map((c) => c.company))
           }
         />
       </Card>
@@ -232,6 +232,8 @@ export default function Companies() {
             onRetry={() => setListAttempt((attempt) => attempt + 1)}
           />
         )}
+
+        {list && <MarketMetadata data={list.market_metadata} scope="Postings associated with companies matching this search, across pages." />}
 
         {list && list.results.length === 0 && (
           <EmptyState title="No companies found" description="Try a different search term." />

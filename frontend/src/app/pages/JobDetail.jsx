@@ -1,3 +1,4 @@
+import { postingDate, sourceLabel } from "../../lib/marketMetadata";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -140,13 +141,15 @@ export default function JobDetail() {
                 {job.category}
               </span>
             )}
-            {job.source && <Badge>via {job.source}</Badge>}
+            <Badge>{sourceLabel(job.source_attribution === undefined ? job.source : job.source_attribution)}</Badge>
+            <span>Posted: {postingDate(job.posted_date)}</span>
             {job.location && (
               <span className="flex items-center gap-1 text-forest/50">
                 <MapPin className="h-3 w-3" /> {job.location}
               </span>
             )}
           </div>
+          <p className="mt-3 text-xs text-ink/80">Collection time and expiry are unavailable. Location text does not confirm eligibility.</p>
           <div className="mt-4 whitespace-pre-line text-sm leading-relaxed text-forest/75">
             {job.description || "No description available for this posting."}
           </div>
