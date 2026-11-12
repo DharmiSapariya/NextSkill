@@ -1,9 +1,14 @@
+import { useId, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { Link } from "react-router-dom";
 import DoodleCircle from "../components/DoodleCircle";
 import TypingAnimation from "../components/TypingAnimation";
 import DashboardMock from "../components/DashboardMock";
 
 export default function Hero() {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const previewDetailsId = useId();
+
   return (
     <section id="top" className="relative bg-cream px-6 pb-24 pt-24 md:pb-32 md:pt-40">
       <div className="relative mx-auto max-w-[900px] text-center">
@@ -44,7 +49,36 @@ export default function Hero() {
 
       <div className="relative mx-auto mt-20 max-w-[900px]">
         <div className="relative overflow-hidden rounded-3xl border border-forest/15 bg-cream shadow-[0_30px_60px_-30px_rgba(20,38,28,0.35)]">
-          <DashboardMock variant="skill-gap-report" label="Your skill-gap report" className="h-[420px]" />
+          <DashboardMock
+            variant="skill-gap-report"
+            label="Skill-gap report preview"
+            className="h-auto md:h-[360px]"
+          />
+          <div className="border-t border-forest/15">
+            <button
+              type="button"
+              aria-expanded={previewOpen}
+              aria-controls={previewDetailsId}
+              onClick={() => setPreviewOpen((open) => !open)}
+              className="group flex min-h-12 w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-ink hover:bg-forest/5 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink sm:px-6"
+            >
+              Explore the sample report
+              <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 group-aria-expanded:rotate-180" />
+            </button>
+            <div
+              id={previewDetailsId}
+              hidden={!previewOpen}
+              className="space-y-2 px-4 pb-5 text-sm leading-relaxed text-ink/80 sm:px-6"
+            >
+              <p>
+                In a personalised report, each percentage shows the share of analysed job postings
+                for your target role that mention a skill.
+              </p>
+              <p>
+                You can see the posting count and open example listings behind each recommendation.
+              </p>
+            </div>
+          </div>
         </div>
         <img
           src="/doodles/seven.png"
@@ -52,7 +86,7 @@ export default function Hero() {
           className="pointer-events-none absolute -left-6 -top-10 hidden w-16 md:block"
         />
         <span className="pointer-events-none absolute -left-2 -top-14 hidden -rotate-[4deg] font-kicker text-sm text-forest md:block">
-          See a real report ↓
+          Explore the example ↓
         </span>
       </div>
     </section>
