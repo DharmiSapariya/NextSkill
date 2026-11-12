@@ -19,7 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = "GET", body, auth = true, isFormData = false } = {}) {
+async function request(path, { method = "GET", body, auth = true, isFormData = false, signal } = {}) {
   const headers = {};
   if (!isFormData) headers["Content-Type"] = "application/json";
   if (auth) {
@@ -30,6 +30,7 @@ async function request(path, { method = "GET", body, auth = true, isFormData = f
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers,
+    signal,
     body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
   });
 
@@ -55,7 +56,7 @@ async function request(path, { method = "GET", body, auth = true, isFormData = f
 export const signup = (email, password) => request("/auth/signup", { method: "POST", body: { email, password }, auth: false });
 export const login = (email, password) => request("/auth/login", { method: "POST", body: { email, password }, auth: false });
 export const refreshToken = () => request("/auth/refresh", { method: "POST" });
-export const getMe = () => request("/auth/me");
+export const getMe = (signal) => request("/auth/me", { signal });
 export const updateMySkills = (skills) => request("/auth/me/skills", { method: "PUT", body: { skills } });
 export const changePassword = (current_password, new_password) =>
   request("/auth/me/password", { method: "PUT", body: { current_password, new_password } });

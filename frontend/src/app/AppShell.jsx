@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate, Link } from "react-router-dom";
+import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -114,7 +114,6 @@ function NavSection({ title, links, badges, onNavigate }) {
 
 export default function AppShell() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [savedCount, setSavedCount] = useState(0);
@@ -128,11 +127,6 @@ export default function AppShell() {
     api.getSavedJobs({ limit: 1 }).then((res) => setSavedCount(res.total)).catch(() => {});
     api.getDigest().then((res) => setHasDigest((res.changes?.length ?? 0) > 0)).catch(() => {});
   }, []);
-
-  const handleLogout = () => {
-    logout();
-    navigate("/");
-  };
 
   const badges = { "/app/saved-jobs": savedCount, "/app": hasDigest ? 1 : 0 };
 
@@ -182,7 +176,7 @@ export default function AppShell() {
           </div>
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={logout}
             aria-label="Log out"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-forest/50 transition-colors hover:bg-forest/10 hover:text-forest"
           >

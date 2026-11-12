@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Plus, Save, KeyRound, Trash2, Eye, EyeOff, RotateCcw, Crown, Check, Layers } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -317,7 +316,6 @@ function PlanCard({ user }) {
 }
 
 function DangerZoneCard() {
-  const navigate = useNavigate();
   const { logout } = useAuth();
   const [password, setPassword] = useState("");
   const [confirmText, setConfirmText] = useState("");
@@ -335,7 +333,6 @@ function DangerZoneCard() {
     try {
       await api.deleteAccount(password);
       logout();
-      navigate("/");
     } catch (err) {
       setError(err.message);
     } finally {
