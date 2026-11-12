@@ -14,13 +14,13 @@ from role_matcher import resolve_role
 def _check_huggingface_model_accessible() -> bool:
     """Lazy evaluation helper to detect offline environment constraints."""
     try:
-        probe = resolve_role("ML Engineer")
+        probe = resolve_role("Machine Learning Specialist")
         return probe.get("similarity") is not None
     except Exception:
         return False
 
 
-# Skip marker evaluated lazily when integration specs run
+# Probe an unaliased query so a successful result requires the vector model.
 requires_hf_model = pytest.mark.skipif(
     not _check_huggingface_model_accessible(),
     reason="SentenceTransformer model unreachable — skipping live embedding tests.",
@@ -83,7 +83,7 @@ def test_embedding_path_with_mocked_similarity():
 @pytest.mark.parametrize(
     "query,expected_role",
     [
-        ("ML Engineer", "machine learning engineer"),
+        ("Machine Learning Specialist", "machine learning engineer"),
         ("Frontend Dev", "frontend developer"),
         ("Backend Dev", "backend developer"),
     ],
@@ -96,6 +96,7 @@ def test_common_phrasings_resolve_via_live_embedding_model(query, expected_role)
         f"expected {expected_role!r} — check SIMILARITY_THRESHOLD tuning."
     )
     assert result["matched_semantically"] is True
+    assert result["similarity"] is not None
 
 
 @requires_hf_model
