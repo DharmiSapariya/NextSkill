@@ -57,7 +57,7 @@ def build_dataset() -> Tuple[np.ndarray, np.ndarray, List[str], List[str], Dict[
             .outerjoin(Skill, Skill.id == JobSkill.skill_id)
             .filter(Job.salary_min.isnot(None))
             .filter(Job.salary_max.isnot(None))
-            .filter(~Job.external_id.like("demo-%"), Job.source != "demo")
+            .filter(~Job.external_id.like("demo-%"), Job.source.notin_(("demo", "remoteok")))
             .all()
         )
 

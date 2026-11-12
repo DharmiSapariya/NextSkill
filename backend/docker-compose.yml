@@ -61,6 +61,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
       ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      ADZUNA_COUNTRY: ${ADZUNA_COUNTRY:-in}
+      REMOTEOK_ENABLED: ${REMOTEOK_ENABLED:-false}
       INGESTION_CRON: ${INGESTION_CRON:-0 3 * * *}
     depends_on:
       db:

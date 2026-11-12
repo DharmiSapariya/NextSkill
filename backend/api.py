@@ -30,7 +30,8 @@ from sqlalchemy import func, or_, text
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
-from models import Job, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, SavedJob, Application, Certification, db_session
+from india_market_report import fresh_observation
+from models import Job, JobObservation, Company, Skill, JobSkill, User, RecommendationHistory, SharedReport, SavedJob, Application, Certification, db_session
 from recommend import recommend_skills_data, recommend_skills_with_evidence
 from auth import hash_password, verify_password, create_access_token, get_current_user, get_current_admin_user
 from resume_parser import parse_resume
@@ -593,6 +594,8 @@ def list_jobs(
     seniority: Optional[Literal["junior", "mid", "senior", "unspecified"]] = Query(
         None, description="Filter by seniority inferred from the title"
     ),
+    geography: Optional[Literal["india_based", "india_eligible_remote", "international_only_remote", "unknown"]] = None,
+    fresh_only: bool = False,
     limit: int = Query(20, ge=1, le=100, description="Max results per page (max 100)"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
 ):
@@ -601,6 +604,10 @@ def list_jobs(
         query = query.filter(Job.title.ilike(f"%{role}%"))
     if location:
         query = query.filter(Job.location.ilike(f"%{location}%"))
+    if geography is not None:
+        query = query.filter(func.coalesce(Job.geography, "unknown") == geography)
+    if fresh_only:
+        query = query.filter(fresh_observation(datetime.now(timezone.utc)))
     if seniority:
         # Same SENIORITY_PATTERNS used for the per-job label below, applied
         # as a Postgres regex filter — one definition, so the filter and the
@@ -612,7 +619,21 @@ def list_jobs(
             query = query.filter(Job.title.op("~*")(as_postgres_regex(SENIORITY_PATTERNS[seniority])))
 
     market_metadata = summarize_postings(query)
+    market_metadata["collection_timestamp"] = (
+        db_session.query(func.max(JobObservation.last_observed_at))
+        .filter(JobObservation.job_id.in_(query.with_entities(Job.id).statement))
+        .scalar()
+    )
     jobs = query.offset(offset).limit(limit).all()
+    remote_urls = {}
+    if jobs:
+        for job_id, url in (
+            db_session.query(JobObservation.job_id, JobObservation.source_url)
+            .filter(JobObservation.job_id.in_([job.id for job in jobs]), JobObservation.source == "remoteok")
+            .order_by(JobObservation.id)
+        ):
+            if url:
+                remote_urls.setdefault(job_id, url)
 
     return {
         "total": market_metadata["posting_count"],
@@ -629,6 +650,10 @@ def list_jobs(
                 "source": j.source,
                 "source_attribution": posting_source(j),
                 "posted_date": j.posted_date,
+                "geography": j.geography or "unknown",
+                "market_city": j.market_city,
+                "experience_band": j.experience_band or "unknown",
+                "remoteok_url": remote_urls.get(j.id),
                 "seniority": infer_seniority(j.title),
             }
             for j in jobs
@@ -641,6 +666,9 @@ def get_job(job_id: int):
     job = db_session.query(Job).filter_by(id=job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail=f"No job found with id {job_id}")
+    observations = (
+        db_session.query(JobObservation).filter_by(job_id=job.id).order_by(JobObservation.id).all()
+    )
     return {
         "id": job.id,
         "title": job.title,
@@ -651,6 +679,24 @@ def get_job(job_id: int):
         "source": job.source,
         "source_attribution": posting_source(job),
         "posted_date": job.posted_date,
+        "geography": job.geography or "unknown",
+        "market_city": job.market_city,
+        "experience_band": job.experience_band or "unknown",
+        "source_observations": [
+            {
+                "source": item.source,
+                "source_job_id": item.source_job_id,
+                "source_url": item.source_url,
+                "requested_country": item.requested_country,
+                "posted_date": item.posted_date,
+                "first_collected_at": item.first_collected_at,
+                "last_observed_at": item.last_observed_at,
+                "expires_at": item.expires_at,
+                "contract_type": item.contract_type,
+                "contract_time": item.contract_time,
+            }
+            for item in observations
+        ],
     }
 
 

@@ -1,137 +1,91 @@
+"""Fetch and commit each source independently, then refresh derived artifacts."""
+from datetime import datetime, timezone
+import json
 import logging
 import os
-import time
-from typing import Any, Dict, Optional, Tuple
 
-from fetch_adzuna import fetch_postings
-from fetch_jobs import fetch_remoteok_postings
-from load_data import load_postings
-from extract_languages import extract_supplementary_skills
-from merge_duplicate_skills import merge_duplicate_skills
+from sqlalchemy import text
+
+from cache import invalidate_market_cache
+from fetch_adzuna import ADZUNA_COUNTRY, SUPPORTED_COUNTRIES, fetch_batch
+from fetch_jobs import fetch_remoteok_batch
+from load_data import persist_source, record_run
+from models import SessionLocal, engine
 from train_salary_model import train_model
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-logger = logging.getLogger("nextskill.orchestrator")
+logger = logging.getLogger("nextskill.pipeline")
+PIPELINE_LOCK = 635096717
 
 
-def _run_step(step_name: str, step_func, *args, **kwargs) -> Tuple[bool, Any, float]:
-    """Executes a pipeline step safely, recording execution duration and capturing exceptions."""
-    start_time = time.time()
+def _run_source(source, country, fetch):
+    started = datetime.now(timezone.utc)
     try:
-        logger.info(f"Starting pipeline step: [{step_name}]...")
-        result = step_func(*args, **kwargs)
-        elapsed = time.time() - start_time
-        logger.info(f"Completed pipeline step: [{step_name}] in {elapsed:.2f}s")
-        return True, result, elapsed
+        batch = fetch()
+        if batch is not None:
+            result = persist_source(batch, started)
+            logger.log(logging.INFO if result["status"] == "success" else logging.WARNING,
+                       "Source %s: %s", source, result)
+            return result
+        result = {"status": "skipped", "reason": "disabled or credentials unavailable"}
     except Exception as exc:
-        elapsed = time.time() - start_time
-        logger.error(f"Failed pipeline step: [{step_name}] after {elapsed:.2f}s: {exc}", exc_info=True)
-        return False, str(exc), elapsed
+        # Provider URLs and SQL parameters can contain credentials or raw data.
+        result = {"status": "failed", "error_type": type(exc).__name__}
+        logger.error("Source %s failed (%s)", source, result["error_type"])
+
+    result["duration_seconds"] = round((datetime.now(timezone.utc) - started).total_seconds(), 3)
+    with SessionLocal.begin() as db:
+        record_run(db, source, country, started, result["status"], result)
+    return result
 
 
-def run_full_pipeline() -> Dict[str, Any]:
-    """Orchestrates the complete job market data ingestion, extraction, and ML pipeline.
-
-    Adzuna is the pipeline's primary, required ingestion source. fetch_postings()
-    returns None specifically (and only) when ADZUNA_APP_ID/ADZUNA_APP_KEY
-    aren't configured — the whole run reports itself skipped on that signal
-    rather than attempting the other sources and reporting a confusing
-    partial failure.
-    """
-    pipeline_start = time.time()
-    logger.info("==================================================")
-    logger.info("Initiating Full Job Market Intelligence Pipeline")
-    logger.info("==================================================")
-
-    metrics: Dict[str, Any] = {
-        "status": "ok",
-        "errors": [],
-        "steps": {},
+def _run_sources():
+    results = {
+        "adzuna": _run_source("adzuna", ADZUNA_COUNTRY if ADZUNA_COUNTRY in SUPPORTED_COUNTRIES else None, fetch_batch),
+        "remoteok": _run_source(
+            "remoteok", None, fetch_remoteok_batch
+            if os.getenv("REMOTEOK_ENABLED", "false").lower() == "true" else lambda: None,
+        ),
     }
+    statuses = {result["status"] for result in results.values()}
+    status = "success"
+    if statuses == {"skipped"}:
+        status = "skipped"
+    elif statuses <= {"failed", "skipped"}:
+        status = "failed"
+    elif statuses & {"failed", "partial"}:
+        status = "partial_failure"
 
-    # Step 1: Fetch Ingestion Sources
-    adzuna_success, adzuna_fetched, _ = _run_step("fetch_adzuna", fetch_postings)
-    if adzuna_success and adzuna_fetched is None:
-        return {"status": "skipped", "reason": "ADZUNA_APP_ID / ADZUNA_APP_KEY not set"}
-    remoteok_success, remoteok_fetched, _ = _run_step("fetch_remoteok", fetch_remoteok_postings)
-
-    total_fetched = (
-        (adzuna_fetched if adzuna_success and isinstance(adzuna_fetched, int) else 0) +
-        (remoteok_fetched if remoteok_success and isinstance(remoteok_fetched, int) else 0)
+    changed = any(
+        row.get("inserted") or row.get("updated") or row.get("linked_existing_opportunity")
+        for row in results.values()
     )
+    if changed:
+        invalidate_market_cache()
+    salary = {"status": "skipped", "reason": "no Adzuna postings changed"}
+    if results["adzuna"].get("inserted") or results["adzuna"].get("salary_input_changes"):
+        try:
+            salary = train_model()
+        except Exception as exc:
+            salary = {"status": "failed", "error_type": type(exc).__name__}
+            logger.error("Salary retraining failed (%s)", salary["error_type"])
+            status = "partial_failure"
+    return {"status": status, "sources": results, "salary_model_retrain": salary}
 
-    metrics["steps"]["ingestion"] = {
-        "adzuna_fetched": adzuna_fetched if adzuna_success else None,
-        "remoteok_fetched": remoteok_fetched if remoteok_success else None,
-        "total_fetched": total_fetched,
-    }
 
-    if not adzuna_success and not remoteok_success:
-        metrics["status"] = "partial_failure"
-        metrics["errors"].append("All ingestion sources failed.")
-
-    # Step 2: Load Data into Database
-    inserted, skipped = 0, 0
-    if total_fetched > 0 or (adzuna_success and adzuna_fetched):
-        load_success, load_result, _ = _run_step("load_database", load_postings)
-        if load_success and isinstance(load_result, tuple):
-            inserted, skipped = load_result
-        elif not load_success:
-            metrics["status"] = "partial_failure"
-            metrics["errors"].append(f"Database load error: {load_result}")
-
-    metrics["steps"]["database_load"] = {
-        "inserted": inserted,
-        "skipped_duplicates": skipped,
-    }
-
-    # Step 3: Skill Extraction
-    extract_success, extract_matches, _ = _run_step("extract_skills", extract_supplementary_skills)
-    if not extract_success:
-        metrics["status"] = "partial_failure"
-        metrics["errors"].append(f"Skill extraction error: {extract_matches}")
-
-    metrics["steps"]["skill_extraction"] = {
-        "matches_added": extract_matches if extract_success else 0,
-    }
-
-    # Step 4: Skill Deduplication
-    merge_success, merged_count, _ = _run_step("merge_duplicate_skills", merge_duplicate_skills)
-    if not merge_success:
-        metrics["status"] = "partial_failure"
-        metrics["errors"].append(f"Deduplication error: {merged_count}")
-
-    metrics["steps"]["deduplication"] = {
-        "skills_merged": merged_count if merge_success else 0,
-    }
-
-    # Step 5: Retrain Salary Model — only when new postings actually arrived
-    if inserted > 0:
-        model_success, model_result, _ = _run_step("train_salary_model", train_model)
-        if not model_success:
-            metrics["status"] = "partial_failure"
-            metrics["errors"].append(f"Model retraining error: {model_result}")
-        metrics["salary_model_retrain"] = model_result if model_success else {"status": "error", "detail": model_result}
-    else:
-        metrics["salary_model_retrain"] = {"status": "skipped", "reason": "no new postings ingested"}
-
-    total_elapsed = time.time() - pipeline_start
-    metrics["total_duration_seconds"] = round(total_elapsed, 2)
-
-    logger.info("==================================================")
-    logger.info(
-        f"Pipeline Execution Finished in {total_elapsed:.2f}s | Status: {metrics['status']}"
-    )
-    logger.info("==================================================")
-
-    return metrics
+def run_full_pipeline():
+    # The scheduler's max_instances only protects one process. Keep this
+    # session-level lock across network calls and both source commits.
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        params = {"key": PIPELINE_LOCK}
+        if not connection.scalar(text("SELECT pg_try_advisory_lock(:key)"), params):
+            return {"status": "skipped", "reason": "another ingestion is running"}
+        try:
+            return _run_sources()
+        finally:
+            connection.execute(text("SELECT pg_advisory_unlock(:key)"), params)
 
 
 if __name__ == "__main__":
     result = run_full_pipeline()
-    print("\nPipeline Result Output:")
-    import json
     print(json.dumps(result, indent=2))
+    raise SystemExit(int(result["status"] in {"failed", "partial_failure"}))

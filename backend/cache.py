@@ -104,3 +104,16 @@ def redis_healthy() -> bool:
         return client.ping()
     except redis.RedisError:
         return False
+
+
+def invalidate_market_cache() -> None:
+    """Best-effort invalidation after PostgreSQL commits market changes."""
+    client = _get_client()
+    if client is None:
+        return
+    try:
+        for pattern in ("transition-graph", "role-nearest:*", "trend:v2:*", "related:*", "skill-co-occurrence-graph:*"):
+            for key in client.scan_iter(match=pattern, count=200):
+                client.delete(key)
+    except redis.RedisError:
+        logger.warning("Market cache invalidation failed; cached entries retain their TTLs")

@@ -342,6 +342,11 @@ export default function Jobs() {
                         </div>
                       </Card>
                     </Link>
+                    {job.remoteok_url && (
+                      <a href={job.remoteok_url} className="ml-3 mt-1 inline-block text-xs font-semibold text-forest underline">
+                        Original posting on Remote OK
+                      </a>
+                    )}
                   </motion.div>
                 );
               })}

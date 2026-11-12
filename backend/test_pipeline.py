@@ -7,6 +7,7 @@ skill deduplication, and scheduler job definitions without side effects.
 
 import json
 import uuid
+from datetime import datetime, timezone
 from typing import Generator
 import pytest
 
@@ -14,7 +15,8 @@ import pipeline
 from fetch_adzuna import fetch_postings
 from load_data import load_postings
 from merge_duplicate_skills import merge_duplicate_skills
-from models import Job, JobSkill, SessionLocal, Skill
+from ingestion_batch import SourceBatch
+from models import Job, JobObservation, JobSkill, SessionLocal, Skill
 from pipeline import run_full_pipeline
 
 
@@ -56,16 +58,19 @@ def test_pipeline_reports_skipped_without_credentials(monkeypatch):
     """Verifies orchestration pipeline halts with explicit status when keys are missing."""
     monkeypatch.delenv("ADZUNA_APP_ID", raising=False)
     monkeypatch.delenv("ADZUNA_APP_KEY", raising=False)
+    monkeypatch.setenv("REMOTEOK_ENABLED", "false")
     result = run_full_pipeline()
-    assert result == {"status": "skipped", "reason": "ADZUNA_APP_ID / ADZUNA_APP_KEY not set"}
+    assert result["status"] == "skipped"
+    assert all(source["status"] == "skipped" for source in result["sources"].values())
 
 
 def test_pipeline_retrains_salary_model_when_new_data_arrives(monkeypatch):
     """Verifies retrain trigger fires only when new postings are successfully ingested."""
-    monkeypatch.setattr(pipeline, "fetch_postings", lambda: 3)
-    monkeypatch.setattr(pipeline, "load_postings", lambda: (3, 0))
-    monkeypatch.setattr(pipeline, "extract_supplementary_skills", lambda: 2)
-    monkeypatch.setattr(pipeline, "merge_duplicate_skills", lambda: 0)
+    monkeypatch.setenv("REMOTEOK_ENABLED", "false")
+    batch = SourceBatch("adzuna", "in", datetime.now(timezone.utc),
+                        [{"id": uuid.uuid4().hex, "title": "Fixture Engineer"}], 1, 0)
+    monkeypatch.setattr(pipeline, "fetch_batch", lambda: batch)
+    monkeypatch.setattr(pipeline, "invalidate_market_cache", lambda: None)
 
     calls = []
     monkeypatch.setattr(
@@ -111,9 +116,9 @@ def test_load_postings_is_idempotent(tmp_path, db_session):
     assert inserted_again == 0
     assert skipped_again == 1
 
-    job = db_session.query(Job).filter_by(external_id=external_id).first()
-    assert job is not None
-    assert job.title == "Pipeline Test Engineer"
+    observation = db_session.query(JobObservation).filter_by(source_job_id=external_id).one()
+    assert observation.last_observed_at is None
+    assert observation.job.title == "Pipeline Test Engineer"
 
 
 def test_merge_duplicate_skills_consolidates_case_variants(db_session, sample_job):

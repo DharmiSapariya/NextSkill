@@ -26,7 +26,10 @@ export default function MarketMetadata({ data, scope }) {
             </p>
           </>
         ) : <p>Source counts and posting dates are unavailable.</p>}
-        <p>Collection time and expiry aren’t recorded. Counts use stored IDs, so reposts can represent the same opening.</p>
+        {data?.collection_timestamp ? (
+          <p>Latest source observation: {postingDate(data.collection_timestamp)}. Some records may lack collection dates.</p>
+        ) : <p>Collection time is unavailable for this selection.</p>}
+        <p>Expiry coverage is incomplete. Separate records can still represent the same opening.</p>
         <p>Location text does not verify country coverage or India eligibility. Seniority labels are inferred from titles where available.</p>
       </div>
     </details>

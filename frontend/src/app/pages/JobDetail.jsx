@@ -149,7 +149,23 @@ export default function JobDetail() {
               </span>
             )}
           </div>
-          <p className="mt-3 text-xs text-ink/80">Collection time and expiry are unavailable. Location text does not confirm eligibility.</p>
+          {job.source_observations?.length ? (
+            <ul className="mt-3 space-y-1 text-xs text-ink/80">
+              {job.source_observations.map((observation) => (
+                <li key={`${observation.source}:${observation.source_job_id}`}>
+                  {observation.source_url ? (
+                    <a className="font-semibold underline" href={observation.source_url}>{sourceLabel(observation.source)}</a>
+                  ) : sourceLabel(observation.source)}
+                  {" · First collected "}{postingDate(observation.first_collected_at)}
+                  {" · Last observed "}{postingDate(observation.last_observed_at)}
+                  {" · Expiry "}{postingDate(observation.expires_at)}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-xs text-ink/80">Collection time and expiry are unavailable.</p>
+          )}
+          <p className="mt-2 text-xs text-ink/80">Confirm work location and eligibility with the employer.</p>
           <div className="mt-4 whitespace-pre-line text-sm leading-relaxed text-forest/75">
             {job.description || "No description available for this posting."}
           </div>

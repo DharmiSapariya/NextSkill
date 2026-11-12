@@ -68,11 +68,50 @@ class Job(Base):
     posted_date = Column(Date, nullable=True, index=True)
     salary_min = Column(Numeric(12, 2), nullable=True)
     salary_max = Column(Numeric(12, 2), nullable=True)
+    geography = Column(String(32), nullable=True, index=True)
+    market_city = Column(String(100), nullable=True)
+    experience_band = Column(String(24), nullable=True)
+    identity_fingerprint = Column(String(64), nullable=True, unique=True)
 
     # Relationships
     company = relationship("Company", back_populates="jobs")
     job_skills = relationship("JobSkill", back_populates="job", cascade="all, delete-orphan")
     saved_by_users = relationship("SavedJob", back_populates="job", cascade="all, delete-orphan")
+
+
+class JobObservation(Base):
+    __tablename__ = "job_observations"
+    __table_args__ = (
+        UniqueConstraint("source", "source_job_id", name="uq_job_observations_source_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    job_id = Column(Integer, ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    source = Column(String(50), nullable=False)
+    source_job_id = Column(String(200), nullable=False)
+    requested_country = Column(String(2), nullable=True)
+    job = relationship("Job")
+    source_url = Column(Text, nullable=True)
+    location_evidence = Column(JSONB, nullable=True)
+    contract_type = Column(String(50), nullable=True)
+    contract_time = Column(String(50), nullable=True)
+    posted_date = Column(Date, nullable=True)
+    first_collected_at = Column(DateTime(timezone=True), nullable=True)
+    last_observed_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class IngestionRun(Base):
+    __tablename__ = "ingestion_runs"
+    __table_args__ = (Index("ix_ingestion_runs_source_status_finished", "source", "status", "finished_at"),)
+
+    id = Column(Integer, primary_key=True)
+    source = Column(String(50), nullable=False)
+    requested_country = Column(String(2), nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=False)
+    finished_at = Column(DateTime(timezone=True), nullable=False)
+    status = Column(String(24), nullable=False)
+    metrics = Column(JSONB, nullable=False)
 
 
 class Skill(Base):

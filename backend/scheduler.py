@@ -45,7 +45,9 @@ def run_pipeline_job() -> None:
         try:
             result = future.result()
             elapsed = time.monotonic() - start_time
-            logger.info("Pipeline executed successfully in %.2fs: %s", elapsed, result)
+            if result["status"] in {"failed", "partial_failure"}:
+                raise RuntimeError(f"Ingestion {result['status']}: {result}")
+            logger.info("Pipeline %s in %.2fs: %s", result["status"], elapsed, result)
         except Exception:
             logger.exception("Pipeline run encountered an unhandled execution error.")
             raise

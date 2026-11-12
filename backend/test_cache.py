@@ -140,3 +140,19 @@ def test_cache_set_fails_open_on_serialization_error(monkeypatch, redis_key: str
 
     result = cache.cache_set(redis_key, {"obj": UnserializableObject()}, ttl_seconds=60)
     assert result in (False, None)
+
+def test_invalidate_market_cache_does_not_delete_unrelated_keys(monkeypatch):
+    from fnmatch import fnmatchcase
+
+    keys = {"trend:v2:python", "transition-graph", "unrelated:session"}
+
+    class FixtureRedis:
+        def scan_iter(self, *, match, count):
+            return [key for key in keys if fnmatchcase(key, match)]
+
+        def delete(self, key):
+            keys.remove(key)
+
+    monkeypatch.setattr(cache, "_get_client", FixtureRedis)
+    cache.invalidate_market_cache()
+    assert keys == {"unrelated:session"}

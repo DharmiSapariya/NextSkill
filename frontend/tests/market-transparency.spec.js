@@ -30,7 +30,7 @@ test("Jobs attributes observations and distinguishes posting age from collection
   await expect(page.getByText("Source unavailable: 1", { exact: true })).toBeVisible();
   await expect(page.getByText(/2 stored posting records/)).toBeVisible();
   await expect(page.getByText(/more than 30 days old/)).toBeVisible();
-  await expect(page.getByText(/Collection time and expiry aren’t recorded/)).toBeVisible();
+  await expect(page.getByText(/Collection time is unavailable/)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
@@ -94,3 +94,24 @@ for (const availability of ["sparse", "legacy", "unavailable"]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
   });
 }
+
+test("Jobs links to Remote OK and separates source dates on the detail page", async ({ page }) => {
+  const original = "https://remoteok.com/remote-jobs/fixture";
+  const job = { id: 77, title: "Remote Developer", source: "remoteok", remoteok_url: original, posted_date: "2026-06-01" };
+  await page.route(/:8000\/jobs\?/, (route) => route.fulfill({
+    json: { total: 1, results: [job], market_metadata: { ...market, collection_timestamp: "2026-06-05T12:00:00Z" } },
+  }));
+  await page.route(/:8000\/jobs\/77$/, (route) => route.fulfill({
+    json: { ...job, source_observations: [
+      { source: "remoteok", source_job_id: "fixture", source_url: original,
+        first_collected_at: "2026-06-04T12:00:00Z", last_observed_at: "2026-06-05T12:00:00Z", expires_at: null },
+    ] },
+  }));
+  await page.goto("/app/jobs");
+  await expect(page.getByRole("link", { name: "Original posting on Remote OK" })).toHaveAttribute("href", original);
+  await page.getByText("Data sources and coverage", { exact: true }).click();
+  await expect(page.getByText(/Latest source observation/)).toBeVisible();
+  await page.getByText("Remote Developer", { exact: true }).click();
+  await expect(page.getByRole("link", { name: "Remote OK", exact: true })).toHaveAttribute("href", original);
+  await expect(page.getByText(/First collected.*Last observed.*Expiry Unavailable/)).toBeVisible();
+});
