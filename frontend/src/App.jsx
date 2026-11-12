@@ -1,28 +1,32 @@
+import { lazy } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Landing from "./Landing";
 import AppShell from "./app/AppShell";
-import Overview from "./app/pages/Overview";
 import Login from "./app/pages/Login";
 import Signup from "./app/pages/Signup";
-import SkillGapReport from "./app/pages/SkillGapReport";
-import ResumeUpload from "./app/pages/ResumeUpload";
-import MatchSalary from "./app/pages/MatchSalary";
-import Jobs from "./app/pages/Jobs";
-import JobDetail from "./app/pages/JobDetail";
-import SavedJobs from "./app/pages/SavedJobs";
-import Trends from "./app/pages/Trends";
-import Skills from "./app/pages/Skills";
-import RoleGraph from "./app/pages/RoleGraph";
-import SkillGraph from "./app/pages/SkillGraph";
-import Companies from "./app/pages/Companies";
-import History from "./app/pages/History";
-import SharedReport from "./app/pages/SharedReport";
-import Settings from "./app/pages/Settings";
-import AdminStats from "./app/pages/AdminStats";
-import AdminUsers from "./app/pages/AdminUsers";
+
+import RouteContent from "./app/RouteContent";
+
+const Overview = lazy(() => import("./app/pages/Overview"));
+const SkillGapReport = lazy(() => import("./app/pages/SkillGapReport"));
+const ResumeUpload = lazy(() => import("./app/pages/ResumeUpload"));
+const MatchSalary = lazy(() => import("./app/pages/MatchSalary"));
+const Jobs = lazy(() => import("./app/pages/Jobs"));
+const JobDetail = lazy(() => import("./app/pages/JobDetail"));
+const SavedJobs = lazy(() => import("./app/pages/SavedJobs"));
+const Trends = lazy(() => import("./app/pages/Trends"));
+const Skills = lazy(() => import("./app/pages/Skills"));
+const RoleGraph = lazy(() => import("./app/pages/RoleGraph"));
+const SkillGraph = lazy(() => import("./app/pages/SkillGraph"));
+const Companies = lazy(() => import("./app/pages/Companies"));
+const History = lazy(() => import("./app/pages/History"));
+const SharedReport = lazy(() => import("./app/pages/SharedReport"));
+const Settings = lazy(() => import("./app/pages/Settings"));
+const AdminStats = lazy(() => import("./app/pages/AdminStats"));
+const AdminUsers = lazy(() => import("./app/pages/AdminUsers"));
 
 function App() {
   return (
@@ -34,7 +38,7 @@ function App() {
 
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/reports/:token" element={<SharedReport />} />
+          <Route path="/reports/:token" element={<RouteContent><SharedReport /></RouteContent>} />
 
           <Route
             path="/app"

@@ -98,8 +98,8 @@ export const getSavedJobs = (params = {}) => request(`/auth/me/saved-jobs?${new 
 export const getJobMatch = (jobId) => request(`/jobs/${jobId}/match`);
 
 // --- Companies ---
-export const getTopCompanies = (limit = 10) => request(`/companies/top?${new URLSearchParams({ limit })}`, { auth: false });
-export const getCompanies = (params = {}) => request(`/companies?${new URLSearchParams(params)}`, { auth: false });
+export const getTopCompanies = (limit = 10, signal) => request(`/companies/top?${new URLSearchParams({ limit })}`, { auth: false, signal });
+export const getCompanies = (params = {}, signal) => request(`/companies?${new URLSearchParams(params)}`, { auth: false, signal });
 
 // --- Trends / skills ---
 export const getSkillTrend = (skillName) => request(`/trends/${encodeURIComponent(skillName)}`, { auth: false });

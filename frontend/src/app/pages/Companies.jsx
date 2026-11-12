@@ -73,20 +73,42 @@ export default function Companies() {
   const debounceRef = useRef(null);
 
   const [top, setTop] = useState(null);
-  const [list, setList] = useState(null);
-  const [error, setError] = useState(null);
+  const [topError, setTopError] = useState(false);
+  const [topAttempt, setTopAttempt] = useState(0);
+  const [listAttempt, setListAttempt] = useState(0);
+  const [listResult, setListResult] = useState(null);
+  const requestKey = JSON.stringify([q, page, listAttempt]);
+  const currentResult = listResult?.key === requestKey ? listResult : null;
+  const list = currentResult?.data;
+  const listError = currentResult?.error;
 
   useEffect(() => {
-    api.getTopCompanies(6).then((res) => setTop(res.results)).catch(() => {});
-  }, []);
+    const controller = new AbortController();
+    api.getTopCompanies(6, controller.signal)
+      .then((res) => {
+        if (!controller.signal.aborted) setTop(res.results);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setTopError(true);
+      });
+    return () => controller.abort();
+  }, [topAttempt]);
 
   useEffect(() => {
-    setList(null);
-    setError(null);
+    const controller = new AbortController();
     const params = { limit: PAGE_SIZE, offset: page * PAGE_SIZE };
     if (q) params.q = q;
-    api.getCompanies(params).then(setList).catch((e) => setError(e.message));
-  }, [q, page]);
+    api.getCompanies(params, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setListResult({ key: requestKey, data });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setListResult({ key: requestKey, error: true });
+      });
+    return () => controller.abort();
+  }, [q, page, requestKey]);
+
+  useEffect(() => () => clearTimeout(debounceRef.current), [searchParams]);
 
   const updateQuery = (value) => {
     const next = new URLSearchParams(searchParams);
@@ -129,6 +151,17 @@ export default function Companies() {
         <img src="/illustrations/17n.png" alt="" className="hidden h-28 w-28 shrink-0 object-contain sm:block" />
       </div>
 
+      {topError && (
+        <div className="mb-8">
+          <ErrorState
+            message="We couldn't load the top companies."
+            onRetry={() => {
+              setTopError(false);
+              setTopAttempt((attempt) => attempt + 1);
+            }}
+          />
+        </div>
+      )}
       {top && top.length > 0 && (
         <div className="mb-8">
           <div className="mb-3 flex items-center gap-2 text-forest/70">
@@ -181,6 +214,7 @@ export default function Companies() {
           value={liveQuery}
           onChange={handleLiveChange}
           onSelect={(name) => {
+            clearTimeout(debounceRef.current);
             setLiveQuery(name);
             updateQuery(name);
           }}
@@ -191,8 +225,13 @@ export default function Companies() {
       </Card>
 
       <div className="mt-6">
-        {!list && !error && <LoadingState label="Loading companies…" />}
-        {error && <ErrorState message={error} />}
+        {!list && !listError && <LoadingState label="Loading companies…" />}
+        {listError && (
+          <ErrorState
+            message="We couldn't load the company list."
+            onRetry={() => setListAttempt((attempt) => attempt + 1)}
+          />
+        )}
 
         {list && list.results.length === 0 && (
           <EmptyState title="No companies found" description="Try a different search term." />

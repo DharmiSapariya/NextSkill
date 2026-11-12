@@ -1,3 +1,4 @@
+import RouteContent from "./RouteContent";
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, Link } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -200,7 +201,9 @@ export default function AppShell() {
 
         <main className="min-w-0 px-6 py-8 sm:px-8 sm:py-10 lg:px-12">
           <div className="mx-auto max-w-5xl">
-            <Outlet />
+            <RouteContent>
+              <Outlet />
+            </RouteContent>
           </div>
         </main>
       </div>

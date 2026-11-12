@@ -28,3 +28,14 @@ npm run test:e2e
 The test command builds and serves the production frontend on port 4173. The
 mobile navigation tests cover keyboard focus, dismissal, links and desktop
 resize. They run independently of the backend.
+
+## Workspace route loading
+
+Workspace and shared-report pages load on demand. The workspace shell and
+authentication checks load with the application. A page-level loading state
+keeps navigation available while a chunk downloads. If a chunk fails, choose
+another workspace page or use **Reload page** to retry the import in a fresh
+document. Companies has separate retries for its list and top-company cards.
+
+Run only the workspace performance browser tests with
+`npm run test:e2e -- tests/workspace-performance.spec.js`.
